@@ -9,19 +9,12 @@
     chaosWall: null
   };
 
-  const SELF_GROWTH_POLES = [
-    { name: "L'Orgueil", creature: "L'Oiselet au Coqueliot", question: "Je ressens un besoin vital que mes accomplissements soient reconnus..." },
-    { name: "L'Avarice", creature: "Le Rat Port-Thésor", question: "J'éprouve une grande difficulté à partager mes ressources..." },
-    { name: "L'Envie", creature: "Le Caméléon aux Miroirs Brisés", question: "Je compare souvent ma situation à celle des autres..." },
-    { name: "La Colère", creature: "Le Taureau de Feu", question: "Mon énergie monte de façon explosive et devient difficile à canaliser." },
-    { name: "La Luxure", creature: "La Sirène Végétale", question: "Je me laisse facilement emporter par mes désirs sensoriels..." },
-    { name: "La Gourmandise", creature: "Le Monticule Affamé", question: "Je consomme souvent au-delà de mes besoins réels..." },
-    { name: "La Paresse", creature: "L'Escargot-Machine", question: "J'ai tendance à remettre systématiquement à plus tard les efforts..." }
-  ];
-  const SG_SCALE = [-2, -1, 0, 1, 2];
-  const SG_LABELS = { '-2': 'Vide', '-1': '', '0': 'Équilibre', '1': '', '2': 'Dominance' };
+  const SELF_GROWTH_POLES = window.MYCELIUM_49 ? window.MYCELIUM_49.poles : [];
+  const SG_SCALE = window.MYCELIUM_49 ? window.MYCELIUM_49.scale : [-2, -1, 0, 1, 2];
+  const SG_LABELS = window.MYCELIUM_49 ? window.MYCELIUM_49.scaleLabels : { '-2': 'Vide', '-1': '', '0': 'Équilibre', '1': '', '2': 'Dominance' };
   let sgAnswers = [];
-  let sgQuestionIndex = 0;
+  let sgPoleIndex = 0;
+  let sgUserName = '';
   let sgRadarChart = null;
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -804,77 +797,83 @@
     showView('test');
   }
 
-  function setSelfGrowthQuestion() {
-    const pole = SELF_GROWTH_POLES[sgQuestionIndex];
-    $('#sg-label').textContent = 'Pôle ' + (sgQuestionIndex + 1) + ' — ' + pole.name;
-    $('#sg-question').textContent = pole.question;
-    const container = $('#sg-options');
+  function updateSgProgress() {
+    const el = $('#sg-progress');
+    if (el) el.textContent = 'Racines ancrées : ' + sgAnswers.filter((a) => a !== undefined && a !== null).length + ' / 49';
+  }
+
+  function setSelfGrowthPage() {
+    const poles = window.MYCELIUM_49 && window.MYCELIUM_49.keys ? window.MYCELIUM_49.keys : (window.MYCELIUM_49 && window.MYCELIUM_49.poles ? window.MYCELIUM_49.poles : []);
+    if (!poles || !poles[sgPoleIndex]) return;
+    const pole = poles[sgPoleIndex];
+    $('#sg-label').textContent = 'Clé ' + (sgPoleIndex + 1) + ' / 7 — ' + pole.name;
+    $('#sg-pole-title').textContent = pole.subtitle || pole.name;
+    const container = $('#sg-questions-container');
     container.innerHTML = '';
-    const current = sgAnswers[sgQuestionIndex] ?? 0;
-    SG_SCALE.forEach((v) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'min-w-[52px] px-3 py-3 rounded-lg font-mono text-sm font-medium border transition-all ' +
-        (current === v
-          ? v === 0
-            ? 'bg-[#D4AF37]/30 border-[#D4AF37] text-[#D4AF37]'
-            : v > 0
-              ? 'bg-[#E63946]/20 border-[#E63946] text-[#E63946]'
-              : 'bg-[#457B9D]/20 border-[#457B9D] text-[#457B9D]'
-          : 'bg-white/5 border-white/20 text-[#F1F1E6]/70 hover:border-white/40');
-      btn.innerHTML = v + (SG_LABELS[v] ? '<br><span class="text-xs opacity-80">' + SG_LABELS[v] + '</span>' : '');
-      btn.onclick = () => {
-        sgAnswers[sgQuestionIndex] = v;
-        setSelfGrowthQuestion();
-      };
-      container.appendChild(btn);
-    });
-    $('#sg-next').style.display = sgQuestionIndex === SELF_GROWTH_POLES.length - 1 ? 'inline-block' : 'inline-block';
-    $('#sg-next').textContent = sgQuestionIndex === SELF_GROWTH_POLES.length - 1 ? 'Voir mon résultat' : 'Suivant';
-  }
-
-  function getSynthesis(scores) {
-    const zeros = scores.filter((s) => s >= -0.5 && s <= 0.5).length;
-    const excess = scores.filter((s) => s > 0.5).length;
-    const empty = scores.filter((s) => s < -0.5).length;
-    if (zeros >= 4) return 'Votre réseau est en harmonie. Le Mycélium dore votre chemin.';
-    if (excess > empty) return 'Vos créatures sont bruyantes. L\'écosystème demande une taille de régulation.';
-    if (empty > excess) return 'Le réseau manque de sève. Réveillez vos pôles endormis.';
-    return 'Votre fil de mycélium est en devenir. L\'énergie cherche son équilibre.';
-  }
-
-  function getInterpretation(scores) {
-    const dominant = scores.map((s, i) => ({ score: s, index: i })).filter((x) => Math.abs(x.score) >= 1);
-    dominant.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
-    if (dominant.length) {
-      const d = dominant[0];
-      const pole = SELF_GROWTH_POLES[d.index];
-      if (d.score > 0) return 'Votre écosystème est dominé par ' + pole.creature + '. Elle prend forme et s\'exprime fortement.';
-      return 'Une zone de pénombre apparaît dans votre ancrage : ' + pole.creature + ' s\'est retirée.';
+    for (let q = 0; q < 7; q++) {
+      const globalIndex = sgPoleIndex * 7 + q;
+      const current = sgAnswers[globalIndex];
+      const div = document.createElement('div');
+      div.className = 'p-4 rounded-xl bg-white/5 border border-white/10';
+      div.innerHTML = '<p class="text-[#F1F1E6] text-sm mb-3">' + (q + 1) + '. ' + pole.questions[q] + '</p>';
+      const btnGroup = document.createElement('div');
+      btnGroup.className = 'flex flex-wrap gap-2';
+      SG_SCALE.forEach((v) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'min-w-[44px] px-2 py-2 rounded-lg font-mono text-xs font-medium border transition-all ' +
+          (current === v
+            ? v === 0 ? 'bg-[#D4AF37]/30 border-[#D4AF37] text-[#D4AF37]'
+              : v > 0 ? 'bg-[#E63946]/20 border-[#E63946] text-[#E63946]'
+                : 'bg-[#457B9D]/20 border-[#457B9D] text-[#457B9D]'
+            : 'bg-white/5 border-white/20 text-[#F1F1E6]/70 hover:border-white/40');
+        btn.textContent = v + (SG_LABELS[v] ? ' ' + SG_LABELS[v] : '');
+        btn.onclick = () => {
+          sgAnswers[globalIndex] = v;
+          setSelfGrowthPage();
+          updateSgProgress();
+        };
+        btnGroup.appendChild(btn);
+      });
+      div.appendChild(btnGroup);
+      container.appendChild(div);
     }
-    return 'Votre fil de mycélium est doré. L\'énergie est intégrée.';
+    updateSgProgress();
+    $('#sg-next').textContent = sgPoleIndex === 6 ? 'Voir mon résultat' : 'Clé suivante';
+  }
+
+  function getPoleAverages() {
+    const avgs = [];
+    for (let p = 0; p < 7; p++) {
+      let sum = 0, count = 0;
+      for (let q = 0; q < 7; q++) {
+        const v = sgAnswers[p * 7 + q];
+        if (v !== undefined && v !== null) { sum += v; count++; }
+      }
+      avgs.push(count === 0 ? 0 : sum / count);
+    }
+    return avgs;
   }
 
   function showSelfGrowthResult() {
     $('#sg-stage').classList.add('hidden');
     $('#sg-result').classList.remove('hidden');
-    const scores = sgAnswers.map((a) => (a === undefined ? 0 : a));
-    $('#sg-interpretation').textContent = getInterpretation(scores);
-    $('#sg-synthesis').textContent = getSynthesis(scores);
+    const poleAverages = getPoleAverages();
+    const keys = window.MYCELIUM_49 && window.MYCELIUM_49.keys ? window.MYCELIUM_49.keys : (window.MYCELIUM_49 && window.MYCELIUM_49.poles ? window.MYCELIUM_49.poles : []);
 
     const canvas = $('#sg-radar');
     if (sgRadarChart) sgRadarChart.destroy();
-    const values = scores.map((s) => s + 2);
-    const colors = scores.map((s) => {
-      if (s >= -0.5 && s <= 0.5) return 'rgba(212, 175, 55, 0.9)';
-      return s > 0 ? 'rgba(230, 57, 70, 0.9)' : 'rgba(69, 123, 157, 0.9)';
+    const values = poleAverages.map((m) => m + 2);
+    const colors = poleAverages.map((m) => {
+      if (m >= -0.5 && m <= 0.5) return 'rgba(212, 175, 55, 0.9)';
+      return m > 0 ? 'rgba(230, 57, 70, 0.9)' : 'rgba(69, 123, 157, 0.9)';
     });
     sgRadarChart = new Chart(canvas, {
       type: 'radar',
       data: {
-        labels: SELF_GROWTH_POLES.map((p) => p.creature),
+        labels: keys.map((k) => k.name),
         datasets: [{
-          label: 'Équilibre',
+          label: 'Sève',
           data: values,
           borderColor: colors,
           backgroundColor: 'rgba(212, 175, 55, 0.1)',
@@ -901,15 +900,169 @@
         plugins: { legend: { display: false } }
       }
     });
+
+    const hybrid = window.calculateHybridProfile(poleAverages);
+    $('#sg-profile-name').textContent = hybrid.name;
+    $('#sg-profile-desc').textContent = hybrid.description;
+    $('#sg-user-display').textContent = sgUserName ? sgUserName : '';
+
+    const report = window.generateReport(poleAverages, sgUserName);
+    $('#sg-global').textContent = report.global;
+
+    const keyDiv = $('#sg-key-analyses');
+    if (keyDiv && report.keyAnalyses) {
+      keyDiv.innerHTML = '';
+      report.keyAnalyses.forEach((k) => {
+        const p = document.createElement('p');
+        p.className = 'text-[#F1F1E6]/90';
+        p.innerHTML = '<strong class="text-[#D4AF37]">' + k.keyName + '</strong> — ' + k.label + '. ' + k.text;
+        keyDiv.appendChild(p);
+      });
+    }
+
+    const refDiv = $('#sg-reflections');
+    refDiv.innerHTML = '';
+    (report.paragraphs || []).forEach((item) => {
+      const p = document.createElement('p');
+      p.className = 'italic text-[#D4AF37]/90';
+      p.innerHTML = '<em>' + item.creature + '</em> — ' + item.text;
+      refDiv.appendChild(p);
+    });
+
+    $('#sg-conseil-foret').textContent = 'Conseil de la Forêt : ' + (report.conseilForet || '');
+
+    const creaturesDiv = $('#sg-creatures');
+    if (creaturesDiv && keys.length) {
+      creaturesDiv.innerHTML = '';
+      keys.forEach((k) => {
+        const block = document.createElement('p');
+        block.className = 'italic';
+        block.innerHTML = '<strong class="text-[#D4AF37]">' + k.name + '</strong> — ' + (k.description || '');
+        creaturesDiv.appendChild(block);
+      });
+    }
+
+    try {
+      const history = JSON.parse(localStorage.getItem('mycelium_49_history') || '[]');
+      history.unshift({
+        date: new Date().toISOString(),
+        userName: sgUserName,
+        profileName: hybrid.name,
+        scores: poleAverages
+      });
+      localStorage.setItem('mycelium_49_history', JSON.stringify(history.slice(0, 30)));
+    } catch (_) {}
+  }
+
+  function exportResults() {
+    const loadingEl = document.getElementById('sg-pdf-loading');
+    const showLoading = () => { if (loadingEl) loadingEl.classList.remove('hidden'); };
+    const hideLoading = () => { if (loadingEl) loadingEl.classList.add('hidden'); };
+
+    showLoading();
+    setTimeout(function doExport() {
+      try {
+        if (typeof html2canvas !== 'undefined' && (window.jspdf && window.jspdf.jsPDF || window.jsPDF)) {
+          const JsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+          const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+          const pageW = doc.internal.pageSize.getWidth();
+          const pageH = doc.internal.pageSize.getHeight();
+          doc.setFillColor(7, 11, 10);
+          doc.rect(0, 0, pageW, pageH, 'F');
+          doc.setTextColor(212, 175, 55);
+          doc.setFontSize(18);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Carte de Conscience Mycélium', pageW / 2, 18, { align: 'center' });
+          const userName = ($('#sg-user-display') && $('#sg-user-display').textContent) || '';
+          if (userName) {
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            doc.text(userName, pageW / 2, 25, { align: 'center' });
+          }
+          const canvas = document.getElementById('sg-radar');
+          if (canvas) {
+            const imgData = canvas.toDataURL('image/png');
+            doc.addImage(imgData, 'PNG', 25, 32, pageW - 50, 70);
+          }
+          let y = 108;
+          doc.setFontSize(14);
+          doc.setTextColor(212, 175, 55);
+          const profileName = ($('#sg-profile-name') && $('#sg-profile-name').textContent) || '';
+          if (profileName) {
+            doc.text('Votre Profil Dominant : ' + profileName, 20, y);
+            y += 10;
+          }
+          doc.setFontSize(10);
+          doc.setTextColor(241, 241, 230);
+          const globalText = ($('#sg-global') && $('#sg-global').textContent) || '';
+          if (globalText) {
+            const lines = doc.splitTextToSize(globalText, pageW - 40);
+            doc.text(lines, 20, y);
+            y += lines.length * 5 + 5;
+          }
+          const keyAnalyses = document.getElementById('sg-key-analyses');
+          if (keyAnalyses && keyAnalyses.children.length) {
+            doc.setFontSize(10);
+            for (let i = 0; i < keyAnalyses.children.length && y < pageH - 25; i++) {
+              const text = keyAnalyses.children[i].textContent || '';
+              const keyLines = doc.splitTextToSize(text, pageW - 40);
+              doc.text(keyLines, 20, y);
+              y += keyLines.length * 5 + 3;
+            }
+            y += 5;
+          }
+          const conseil = ($('#sg-conseil-foret') && $('#sg-conseil-foret').textContent) || '';
+          if (conseil && y < pageH - 20) {
+            doc.setTextColor(212, 175, 55);
+            doc.setFont('helvetica', 'italic');
+            const conseilLines = doc.splitTextToSize(conseil, pageW - 40);
+            doc.text(conseilLines, 20, y);
+            y += conseilLines.length * 5 + 8;
+          }
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(180, 180, 170);
+          doc.text('Le réseau ne juge pas, il s\'adapte.', pageW / 2, pageH - 10, { align: 'center' });
+          doc.save('carte-conscience-mycelium.pdf');
+        } else {
+          const el = document.getElementById('sg-export-area');
+          if (el && typeof html2pdf !== 'undefined') {
+            html2pdf().set({
+              margin: 10,
+              filename: 'carte-conscience-mycelium.pdf',
+              image: { type: 'jpeg', quality: 0.95 },
+              html2canvas: { scale: 2 },
+              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(el).save();
+          } else {
+            alert('Export PDF indisponible.');
+          }
+        }
+      } catch (e) {
+        alert('Erreur lors de la génération du PDF.');
+      }
+      hideLoading();
+    }, 400);
   }
 
   function startSelfGrowth() {
-    sgAnswers = [];
-    sgQuestionIndex = 0;
+    sgAnswers = new Array(49);
+    sgPoleIndex = 0;
+    sgUserName = '';
     $('#sg-result').classList.add('hidden');
-    $('#sg-stage').classList.remove('hidden');
-    setSelfGrowthQuestion();
+    $('#sg-stage').classList.add('hidden');
+    $('#sg-intro').classList.remove('hidden');
+    $('#sg-user-name').value = '';
+    updateSgProgress();
     showView('self-growth');
+  }
+
+  function goSgFirstPole() {
+    sgUserName = ($('#sg-user-name') && $('#sg-user-name').value) || '';
+    $('#sg-intro').classList.add('hidden');
+    $('#sg-stage').classList.remove('hidden');
+    sgPoleIndex = 0;
+    setSelfGrowthPage();
   }
 
   function init() {
@@ -920,24 +1073,60 @@
       });
     });
 
+    const sgStart49 = document.getElementById('sg-start-49');
+    if (sgStart49) sgStart49.addEventListener('click', goSgFirstPole);
+
     $('#sg-next').addEventListener('click', () => {
-      if (sgQuestionIndex < SELF_GROWTH_POLES.length - 1) {
-        sgQuestionIndex++;
-        setSelfGrowthQuestion();
+      if (sgPoleIndex < 6) {
+        const overlay = document.createElement('div');
+        overlay.className = 'sg-racine-overlay';
+        overlay.innerHTML = '<span class="sg-racine-text">Racine ancrée</span><div class="sg-racine-line"></div>';
+        document.body.appendChild(overlay);
+        setTimeout(() => {
+          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+          sgPoleIndex++;
+          setSelfGrowthPage();
+        }, 1200);
       } else {
         showSelfGrowthResult();
       }
     });
+
+    const sgExportPdf = document.getElementById('sg-export-pdf');
+    if (sgExportPdf) sgExportPdf.addEventListener('click', exportResults);
+
+    const sgSendEmail = document.getElementById('sg-send-email');
+    if (sgSendEmail) sgSendEmail.addEventListener('click', () => {
+      const email = ($('#sg-email') && $('#sg-email').value) || '';
+      if (!email) { alert('Veuillez saisir votre adresse email.'); return; }
+      const prenom = (sgUserName || '').trim() || 'ami';
+      const bodyText = 'Voici votre écosystème, ' + prenom + '. Puissiez-vous trouver l\'équilibre dans votre croissance.';
+      if (window.emailjs && window.emailjs.send) {
+        try {
+          window.emailjs.send('default_service', 'mycelium_report', {
+            to_email: email,
+            message: bodyText,
+            user_name: prenom
+          }).then(() => { alert('Email envoyé à ' + email); }).catch(() => alert('Envoi impossible. Configurez EmailJS (voir doc).'));
+        } catch (e) { alert('EmailJS non configuré.'); }
+      } else {
+        const subj = encodeURIComponent('Carte de Conscience Mycélium');
+        const body = encodeURIComponent(bodyText + '\n\nTéléchargez votre PDF depuis l\'application pour joindre votre carte.');
+        window.location.href = 'mailto:' + email + '?subject=' + subj + '&body=' + body;
+        alert('Ouverture du client mail. Téléchargez d\'abord le PDF puis joignez-le à votre email.');
+      }
+    });
+
     $('#sg-redo').addEventListener('click', () => {
-      sgAnswers = [];
-      sgQuestionIndex = 0;
+      sgAnswers = new Array(49);
+      sgPoleIndex = 0;
       $('#sg-result').classList.add('hidden');
-      $('#sg-stage').classList.remove('hidden');
-      setSelfGrowthQuestion();
+      $('#sg-stage').classList.add('hidden');
+      $('#sg-intro').classList.remove('hidden');
+      $('#sg-user-name').value = '';
+      updateSgProgress();
     });
-    $('#sg-back-to-selector').addEventListener('click', () => {
-      showView('selector');
-    });
+    $('#sg-back-to-selector').addEventListener('click', () => { showView('selector'); });
 
     $('#btn-back').addEventListener('click', () => {
       if (state.view === 'self-growth') {
