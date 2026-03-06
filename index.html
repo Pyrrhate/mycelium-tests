@@ -54,8 +54,8 @@
         <button id="btn-next" class="hidden mt-8 px-8 py-3 rounded-lg font-semibold bg-white/20 hover:bg-white/30 text-white transition">Suivant</button>
       </div>
 
-      <!-- Écran de résultat (caché au départ) -->
-      <div id="result-stage" class="hidden min-h-screen flex flex-col items-center justify-center p-8 text-center">
+      <!-- Écran de résultat (caché au départ) : calque fixe au-dessus de tout (GIFs + popups chaos) -->
+      <div id="result-stage" class="hidden min-h-screen flex flex-col items-center justify-center p-8 text-center fixed inset-0 z-[100]">
         <div id="result-content"></div>
         <div class="mt-8 flex gap-4 flex-wrap justify-center">
           <button id="btn-redo" class="px-6 py-3 rounded-lg font-semibold bg-white/20 hover:bg-white/30 text-white border border-white/30 transition">Refaire le test</button>
@@ -64,17 +64,11 @@
       </div>
     </div>
 
-    <!-- Barre fixe : Retour + Sélecteur de test (en bas à gauche) -->
+    <!-- Barre fixe : Retour (en bas à gauche) -->
     <div id="global-nav" class="fixed bottom-4 left-4 z-50 flex flex-col gap-2 opacity-0 pointer-events-none transition-opacity duration-300">
       <button id="btn-back" class="px-4 py-2 rounded-lg bg-black/60 hover:bg-black/80 text-white text-sm font-medium backdrop-blur">
         ← Retour
       </button>
-      <div class="flex flex-wrap gap-2">
-        <button data-nav="musk" class="nav-test px-3 py-1.5 rounded bg-white/20 hover:bg-white/40 text-white text-xs">Musk</button>
-        <button data-nav="bdw" class="nav-test px-3 py-1.5 rounded bg-white/20 hover:bg-white/40 text-white text-xs">BDW</button>
-        <button data-nav="trump" class="nav-test px-3 py-1.5 rounded bg-white/20 hover:bg-white/40 text-white text-xs">Trump</button>
-        <button data-nav="putin" class="nav-test px-3 py-1.5 rounded bg-white/20 hover:bg-white/40 text-white text-xs">Tsar</button>
-      </div>
     </div>
 
     <!-- Canvas / overlays pour effets (pluie, confettis, etc.) -->

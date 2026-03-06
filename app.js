@@ -4,13 +4,9 @@
     currentQuestion: 0,
     view: 'selector',
     totalQuestions: 7,
-    chaosBoost: 0,
     chaosRunning: false,
     chaosTimer: null,
-    chaosWall: null,
-    activePopups: 0,
-    popupTotal: 0,
-    popupMax: 0
+    chaosWall: null
   };
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -161,138 +157,13 @@
     else document.title = testId === 'bdw' ? 'IMPERIUM' : 'SOUMISSION';
   }
 
-  const GIF_BANK = {
-    musk: [
-      'https://media.giphy.com/media/l0K4kWJir91VEoa1W/giphy.gif',
-      'https://media.giphy.com/media/3o7aCTfyhYawdOXcFW/giphy.gif',
-      'https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif',
-      'https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif',
-      'https://media.giphy.com/media/26BRQTezZrKak4BeE/giphy.gif'
-    ],
-    trump: [
-      'https://media.giphy.com/media/3o6Zt481isNVuQI1l6/giphy.gif',
-      'https://media.giphy.com/media/3o6Zt8MgUuvSbkZYWc/giphy.gif',
-      'https://media.giphy.com/media/26BRQTezZrKak4BeE/giphy.gif',
-      'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',
-      'https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif'
-    ],
-    bdw: [
-      'https://media.giphy.com/media/l0HlQ7LRalQWvJY5G/giphy.gif',
-      'https://media.giphy.com/media/3o7aD4vR3l5hF1xJZC/giphy.gif',
-      'https://media.giphy.com/media/26BRrSvJUa0crqw4E/giphy.gif',
-      'https://media.giphy.com/media/3o6Zt6ML6BklcajjsA/giphy.gif',
-      'https://media.giphy.com/media/3o6Zt6D9yBfGd9dV1m/giphy.gif'
-    ],
-    putin: [
-      'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',  // neige
-      'https://media.giphy.com/media/l0MYu5n9M3sGZ6yUQ/giphy.gif',  // militaire
-      'https://media.giphy.com/media/l0MYrQf2Zl9s4Y8nS/giphy.gif',  // surveillance
-      'https://media.giphy.com/media/3o7aD4kZK8u1o0YJ2A/giphy.gif',
-      'https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif',
-      'https://media.giphy.com/media/3o6Zt6D9yBfGd9dV1m/giphy.gif',
-      'https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif',
-      'https://media.giphy.com/media/26BRQTezZrKak4BeE/giphy.gif',
-      'https://media.giphy.com/media/3o7aCTfyhYawdOXcFW/giphy.gif',
-      'https://media.giphy.com/media/3o6Zt8MgUuvSbkZYWc/giphy.gif'
-    ]
-  };
+  const GIF_BANK = {};
 
-  function pickGif(testId, salt = 0) {
-    const bank = GIF_BANK[testId] || [];
-    if (!bank.length) return null;
-    const i = Math.abs(((Date.now() / 7) | 0) + salt) % bank.length;
-    return bank[i];
-  }
+  function pickGif() { return null; }
 
-  function spawnIntrusivePopup(testId, qIndex) {
-    // limite globale de popups visibles et totales par \"run\"
-    if (state.activePopups >= 7) return;
-    if (state.popupMax && state.popupTotal >= state.popupMax) return;
+  function spawnIntrusivePopup() {}
 
-    const gif = pickGif(testId, qIndex);
-    if (!gif) return;
-    const popup = document.createElement('div');
-    popup.className = `intrusive-popup popup-${testId}`;
-    const title = testId === 'trump' ? 'FAKE NEWS' : testId === 'musk' ? 'X NOTIF' : testId === 'bdw' ? 'CONFÉDÉRALISME' : 'PROTOCOLE';
-    const caption = testId === 'trump' ? 'ERREUR DE PENSÉE : correction en cours.' : testId === 'musk' ? 'Votre profil est recalibré.' : testId === 'bdw' ? 'Cohésion : non conforme.' : 'Conformité requise.';
-    popup.innerHTML = `
-      <div class="intrusive-popup-header">
-        <span>${title}</span>
-        <span>${String(qIndex).padStart(2, '0')}/07</span>
-      </div>
-      <div class="intrusive-popup-body">
-        <img alt="meme" src="${gif}" />
-        <div class="intrusive-popup-caption">${caption}</div>
-      </div>
-    `;
-    const maxX = Math.max(8, window.innerWidth - 360);
-    const maxY = Math.max(8, window.innerHeight - 280);
-    popup.style.left = (Math.random() * maxX) + 'px';
-    popup.style.top = (Math.random() * maxY) + 'px';
-    document.body.appendChild(popup);
-    state.activePopups++;
-    state.popupTotal++;
-
-    // rendre le popup déplaçable (drag via header)
-    const header = popup.querySelector('.intrusive-popup-header');
-    if (header) {
-      header.style.cursor = 'move';
-      let dragging = false;
-      let startX = 0;
-      let startY = 0;
-      let baseLeft = 0;
-      let baseTop = 0;
-      const onMove = (e) => {
-        if (!dragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        popup.style.left = Math.min(Math.max(0, baseLeft + dx), window.innerWidth - popup.offsetWidth) + 'px';
-        popup.style.top = Math.min(Math.max(0, baseTop + dy), window.innerHeight - popup.offsetHeight) + 'px';
-      };
-      const onUp = () => {
-        dragging = false;
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      };
-      header.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        dragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        const rect = popup.getBoundingClientRect();
-        baseLeft = rect.left;
-        baseTop = rect.top;
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-      });
-    }
-
-    const ttl = 2200 + Math.random() * 1600;
-    setTimeout(() => {
-      if (popup.parentNode) popup.remove();
-      state.activePopups = Math.max(0, state.activePopups - 1);
-    }, ttl);
-  }
-
-  function startChaosWall(testId, qIndex) {
-    stopChaosWall();
-    const wall = document.createElement('div');
-    wall.className = 'chaos-gif-wall';
-    const g1 = pickGif(testId, qIndex + 1);
-    const g2 = pickGif(testId, qIndex + 2);
-    const g3 = pickGif(testId, qIndex + 3);
-    const g4 = pickGif(testId, qIndex + 4);
-    const label = testId === 'trump' ? 'FAKE NEWS!' : testId === 'musk' ? 'ERREUR DE PENSÉE' : testId === 'bdw' ? 'CONFÉDÉRALISME' : 'SURVEILLANCE';
-    wall.innerHTML = `
-      <img alt="gif" src="${g1 || g2 || ''}" />
-      <img alt="gif" src="${g2 || g1 || ''}" />
-      <img alt="gif" src="${g3 || g1 || ''}" />
-      <img alt="gif" src="${g4 || g2 || ''}" />
-      <div class="chaos-label">${label}</div>
-    `;
-    document.body.appendChild(wall);
-    state.chaosWall = wall;
-  }
+  function startChaosWall() {}
 
   function stopChaosWall() {
     if (state.chaosWall) {
@@ -301,24 +172,7 @@
     }
   }
 
-  function startChaos(testId, qIndex) {
-    stopChaos();
-    state.chaosRunning = true;
-    // on choisit un nombre de popups total aléatoire (3 à 7)
-    state.popupTotal = 0;
-    state.popupMax = 3 + Math.floor(Math.random() * 5);
-    startChaosWall(testId, qIndex);
-    // fréquence plus lente (≈ 1,5–2 s), légèrement impactée par le chaosBoost
-    const baseEvery = Math.max(1400, 2000 - state.chaosBoost * 120);
-    state.chaosTimer = setInterval(() => {
-      if (!state.chaosRunning) return;
-      spawnIntrusivePopup(testId, qIndex);
-      if (state.popupMax && state.popupTotal >= state.popupMax) {
-        clearInterval(state.chaosTimer);
-        state.chaosTimer = null;
-      }
-    }, baseEvery);
-  }
+  function startChaos() {}
 
   function stopChaos() {
     state.chaosRunning = false;
@@ -327,14 +181,12 @@
       state.chaosTimer = null;
     }
     stopChaosWall();
-    const oldModal = $('#intrusive-modal');
-    if (oldModal) oldModal.remove();
   }
 
   function burstConfettiGold() {
     const root = document.createElement('div');
     root.className = 'confetti';
-    const count = 80 + state.chaosBoost * 20;
+    const count = 80;
     for (let i = 0; i < count; i++) {
       const p = document.createElement('div');
       p.className = 'confetti-piece';
@@ -350,48 +202,83 @@
   }
 
   function showDogeMeme() {
-    const existing = $('#intrusive-modal');
+    const existing = $('#share-modal');
     if (existing) existing.remove();
     const modal = document.createElement('div');
-    modal.id = 'intrusive-modal';
+    modal.id = 'share-modal';
     modal.className = 'fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4';
     modal.innerHTML = `
       <div class="bg-black/90 border-4 border-amber-400 rounded-2xl p-6 max-w-lg w-full text-center">
         <h3 class="text-2xl font-black text-amber-400 mb-4">TO THE MOON</h3>
         <img class="w-full rounded-xl mb-4" style="height:260px; object-fit:cover" alt="doge" src="https://media.giphy.com/media/5ndklThG9vUUdTmgMn/giphy.gif" />
-        <p class="text-white/90 font-bold">TO THE MOON! MUCH WINNING! VERY TRUMP!</p>
-        <button id="btn-close-doge" class="mt-5 px-6 py-3 rounded-xl bg-amber-500 text-black font-black">OK</button>
+        <p class="text-white/90 font-bold">TO THE MOON! MUCH DOGE! VERY ALPHA!</p>
+        <button id="btn-close-share" class="mt-5 px-6 py-3 rounded-xl bg-amber-500 text-black font-black">OK</button>
       </div>
     `;
     document.body.appendChild(modal);
-    $('#btn-close-doge', modal).onclick = () => modal.remove();
+    $('#btn-close-share', modal).onclick = () => modal.remove();
   }
 
-  function showFinalPopup(testId) {
-    const existing = $('#intrusive-modal');
+  function showDollarsFall() {
+    const existing = $('#share-modal');
     if (existing) existing.remove();
     const modal = document.createElement('div');
-    modal.id = 'intrusive-modal';
-    modal.className = 'fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4';
-    const title =
-      testId === 'trump' ? 'DIAGNOSTIC FINAL' :
-      testId === 'musk' ? 'IDENTIFICATION : ALPHA' :
-      testId === 'bdw' ? 'AVERTISSEMENT IMPÉRIAL' :
-      'PROTOCOLE : CLÔTURE';
-    const msg =
-      testId === 'trump' ? 'Le système confirme une compatibilité totale. Merci de votre coopération.' :
-      testId === 'musk' ? 'Votre profil converge. Aucune divergence tolérée.' :
-      testId === 'bdw' ? 'La cohésion est validée. Le reste du pays est secondaire.' :
-      'La session est enregistrée. Aucune issue n’a jamais existé.';
+    modal.id = 'share-modal';
+    modal.className = 'fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/90 p-4';
     modal.innerHTML = `
-      <div class="bg-black/90 border border-white/20 rounded-2xl p-6 max-w-lg w-full text-center">
-        <h3 class="text-xl font-black text-white mb-3">${title}</h3>
-        <p class="text-white/80">${msg}</p>
-        <button id="btn-final-ok" class="mt-5 px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold border border-white/20">OK</button>
-      </div>
+      <h3 class="text-3xl font-black text-amber-400 mb-4 z-10">MUCH WINNING! SO RICH!</h3>
+      <div id="dollars-rain" class="absolute inset-0 overflow-hidden pointer-events-none"></div>
+      <button id="btn-close-share" class="mt-6 px-6 py-3 rounded-xl bg-amber-500 text-black font-black z-10">OK</button>
     `;
     document.body.appendChild(modal);
-    return modal;
+    const rain = $('#dollars-rain', modal);
+    for (let i = 0; i < 60; i++) {
+      const d = document.createElement('div');
+      d.className = 'rain-item absolute text-4xl opacity-90';
+      d.textContent = '💵';
+      d.style.left = Math.random() * 100 + '%';
+      d.style.animationDuration = (2.5 + Math.random() * 2) + 's';
+      d.style.animationDelay = Math.random() * 1.5 + 's';
+      d.style.fontSize = (28 + Math.random() * 24) + 'px';
+      rain.appendChild(d);
+    }
+    setTimeout(() => { try { rain.querySelectorAll('.rain-item').forEach(el => el.remove()); } catch(_){} }, 5000);
+    $('#btn-close-share', modal).onclick = () => modal.remove();
+  }
+
+  function showFlemishFlag() {
+    const existing = $('#share-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'share-modal';
+    modal.className = 'fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4';
+    const flagSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" class="w-full max-w-md rounded-xl shadow-2xl"><rect width="300" height="200" fill="#FDDA24"/><path d="M150 40c-30 0-55 20-55 60s25 60 55 60 55-20 55-60-25-60-55-60zm0 95c-25 0-45-15-45-35s20-35 45-35 45 15 45 35-20 35-45 35z" fill="#000"/><path d="M130 75h40v50h-40z" fill="#000"/><path d="M115 70l35 15-35 15V70zm70 0v30l-35-15 35-15z" fill="#000"/></svg>';
+    modal.innerHTML = '<div class="bg-black/90 border-4 border-yellow-500 rounded-2xl p-6 max-w-lg w-full text-center"><h3 class="text-2xl font-black text-yellow-400 mb-4">VLAAMS VOLK, EEN ZIEL</h3><div class="mb-4">' + flagSvg + '</div><p class="text-yellow-100 font-bold">Le lion flamand. Nil volentibus arduum.</p><button id="btn-close-share" class="mt-5 px-6 py-3 rounded-xl bg-yellow-500 text-black font-black">OK</button></div>';
+    document.body.appendChild(modal);
+    $('#btn-close-share', modal).onclick = () => modal.remove();
+  }
+
+  function showKalashnikovs() {
+    const existing = $('#share-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'share-modal';
+    modal.className = 'fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/95 p-4';
+    modal.innerHTML = '<h3 class="text-2xl font-mono font-black text-red-700 mb-4 z-10">PROTOCOLE ARMÉ</h3><div id="ak-rain" class="absolute inset-0 overflow-hidden pointer-events-none"></div><button id="btn-close-share" class="mt-6 px-6 py-3 rounded border border-red-800 text-red-600 font-mono z-10">OK</button>';
+    document.body.appendChild(modal);
+    const rain = $('#ak-rain', modal);
+    for (let i = 0; i < 40; i++) {
+      const d = document.createElement('div');
+      d.className = 'rain-item absolute';
+      d.innerHTML = '<span style="font-size:2rem; color:#444;">🔫</span>';
+      d.style.left = Math.random() * 100 + '%';
+      d.style.animationDuration = (3 + Math.random() * 2) + 's';
+      d.style.animationDelay = Math.random() * 2 + 's';
+      d.style.transform = 'rotate(-45deg)';
+      rain.appendChild(d);
+    }
+    setTimeout(() => { try { rain.querySelectorAll('.rain-item').forEach(el => el.remove()); } catch(_){} }, 5500);
+    $('#btn-close-share', modal).onclick = () => modal.remove();
   }
 
   // --- Pop contextuel à partir de la Q3 (selon le test) ---
@@ -829,20 +716,24 @@
     content.innerHTML = '';
 
     if (state.currentTest === 'musk') {
-      content.innerHTML = '<div class="bg-black/80 rounded-2xl p-8 max-w-lg border-2 border-amber-500/50"><h2 class="text-2xl font-bold text-amber-400 mb-4">Mars Citizen</h2><p class="text-white/90 mb-6">' + test.resultText + '</p><p class="text-amber-400/80 text-sm">Alpha-Musk • Niveau Orbite</p></div>';
+      content.innerHTML = '<div class="bg-black/80 rounded-2xl p-8 max-w-lg border-2 border-amber-500/50"><h2 class="text-2xl font-bold text-amber-400 mb-4">Mars Citizen</h2><p class="text-white/90 mb-6">' + test.resultText + '</p><p class="text-amber-400/80 text-sm">Alpha-Musk • Niveau Orbite</p><button id="btn-share-musk" class="mt-4 px-6 py-3 rounded bg-amber-500 text-black font-bold">Partager</button></div>';
+      const shareMusk = $('#btn-share-musk');
+      if (shareMusk) shareMusk.onclick = () => showDogeMeme();
     } else if (state.currentTest === 'bdw') {
       document.body.className = 'min-h-screen overflow-x-hidden antialiased bg-amber-900/30';
-      content.innerHTML = '<div class="bg-black/90 rounded-2xl p-8 max-w-lg border-2 border-amber-500"><h2 class="text-3xl font-bold text-amber-400 mb-4">AVE BARTIMUS ! VOUS ÊTES L\'EMPEREUR.</h2><p class="text-amber-100 mb-6">' + test.resultText + '</p><button id="btn-dissolve" class="mt-4 px-6 py-3 rounded bg-red-800 text-white font-bold">Dissoudre le pays</button></div>';
+      content.innerHTML = '<div class="bg-black/90 rounded-2xl p-8 max-w-lg border-2 border-amber-500"><h2 class="text-3xl font-bold text-amber-400 mb-4">AVE BARTIMUS ! VOUS ÊTES L\'EMPEREUR.</h2><p class="text-amber-100 mb-6">' + test.resultText + '</p><button id="btn-dissolve" class="mt-4 px-6 py-3 rounded bg-red-800 text-white font-bold">Dissoudre le pays</button><button id="btn-share-bdw" class="mt-4 ml-2 px-6 py-3 rounded bg-yellow-500 text-black font-bold">Partager</button></div>';
       $('#effects-layer').innerHTML = '<div class="rain-container"><div class="absolute inset-0 opacity-20" style="background: url(\'data:image/svg+xml,&lt;svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 20 20\'&gt;&lt;text y=15 font-size=14 fill=%23fdda24&gt;🍟&lt;/text&gt;&lt;/svg\') repeat;"></div></div>';
       $('#btn-dissolve').onclick = () => { try { window.close(); } catch (_) { alert('Fermez l\'onglet vous-même. L\'Empire vous observe.'); } };
+      const shareBdw = $('#btn-share-bdw');
+      if (shareBdw) shareBdw.onclick = () => showFlemishFlag();
     } else if (state.currentTest === 'trump') {
       content.innerHTML = '<div class="gold-pulse bg-black/80 rounded-2xl p-8 max-w-lg border-4 border-amber-400"><h2 class="text-3xl font-bold text-amber-400 mb-4">' + test.resultTitle + '</h2><p class="text-white/90 mb-4">' + test.resultText + '</p><p class="text-4xl font-black text-amber-400 my-6">' + (test.resultBadge || '') + '</p><button id="btn-share-winner" class="px-6 py-3 rounded bg-amber-500 text-black font-black">PARTAGER MON SCORE DE GAGNANT</button></div>';
       document.body.classList.add('cursor-maga');
       const share = $('#btn-share-winner');
-      if (share) share.onclick = () => showDogeMeme();
+      if (share) share.onclick = () => showDollarsFall();
     } else if (state.currentTest === 'putin') {
       document.body.className = 'min-h-screen overflow-x-hidden antialiased bg-black';
-      content.innerHTML = '<div class="bg-black border border-red-900/80 rounded p-8 max-w-lg"><h2 class="text-xl font-mono text-red-700 mb-4">IDENTITÉ CONFIRMÉE : VLADIMIR V. POUTINE.</h2><p class="text-red-200/90 mb-6">' + test.resultText + '</p><button id="btn-stay-power" class="px-6 py-3 rounded border border-red-800 text-red-600 font-mono">RESTER AU POUVOIR</button></div>';
+      content.innerHTML = '<div class="bg-black border border-red-900/80 rounded p-8 max-w-lg"><h2 class="text-xl font-mono text-red-700 mb-4">IDENTITÉ CONFIRMÉE : VLADIMIR V. POUTINE.</h2><p class="text-red-200/90 mb-6">' + test.resultText + '</p><button id="btn-stay-power" class="px-6 py-3 rounded border border-red-800 text-red-600 font-mono">RESTER AU POUVOIR</button><button id="btn-share-putin" class="mt-4 ml-2 px-6 py-3 rounded border border-red-700 text-red-500 font-mono">Partager</button></div>';
       $('#btn-stay-power').onclick = () => {
         state.currentQuestion = 1;
         $('#result-stage').classList.add('hidden');
@@ -850,19 +741,12 @@
         $('#effects-layer').innerHTML = '';
         setQuestion(1);
       };
+      const sharePutin = $('#btn-share-putin');
+      if (sharePutin) sharePutin.onclick = () => showKalashnikovs();
     }
 
-    // Le gros chaos (4 grands GIFs + popups intrusifs) arrive APRÈS la popup finale.
+    // Plus de popup finale ni de chaos GIF
     stopChaos();
-    const finalModal = showFinalPopup(state.currentTest);
-    const ok = $('#btn-final-ok', finalModal);
-    if (ok) {
-      ok.onclick = () => {
-        finalModal.remove();
-        state.chaosBoost = Math.max(state.chaosBoost || 0, 1);
-        startChaos(state.currentTest, 7);
-      };
-    }
 
     $('#btn-redo').onclick = redoTest;
     $('#btn-back-to-selector').onclick = () => {
@@ -876,8 +760,6 @@
   }
 
   function redoTest() {
-    // Le bouton \"Recommencer\" ne vous laisse pas partir : il augmente le chaos.
-    state.chaosBoost = Math.min(6, (state.chaosBoost || 0) + 1);
     state.currentQuestion = 1;
     $('#result-stage').classList.add('hidden');
     $('#test-stage').classList.remove('hidden');
@@ -887,7 +769,6 @@
 
   function startTest(testId) {
     state.currentTest = testId;
-    state.chaosBoost = 0;
     state.currentQuestion = 1;
     state.totalQuestions = 7;
     stopChaos();
@@ -925,13 +806,6 @@
         showView('selector');
         updateTabTitle(null, 0);
       }
-    });
-
-    $$('.nav-test').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.nav === state.currentTest) return;
-        startTest(btn.dataset.nav);
-      });
     });
 
     window.addEventListener('beforeunload', (e) => {
