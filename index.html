@@ -3,34 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mycélium – Tests de Personnalité</title>
+  <title>Mycélium : Test de Compatibilité Universelle</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Playfair+Display:wght@400;700&family=Inter:wght@300;500;700&display=swap" rel="stylesheet" />
 </head>
 <body class="min-h-screen overflow-x-hidden antialiased">
   <div id="app" class="min-h-screen relative">
-    <!-- Écran de sélection des tests -->
-    <div id="view-selector" class="min-h-screen flex flex-col items-center justify-center p-8 bg-gradient-to-br from-slate-100 to-slate-200">
-      <h1 class="text-4xl font-serif font-bold text-slate-800 mb-2">Mycélium</h1>
-      <p class="text-slate-600 mb-12">Choisissez votre test de personnalité</p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-        <button data-test="musk" class="test-card group p-6 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all border-2 border-transparent hover:border-slate-400 text-left">
-          <span class="text-2xl font-semibold text-slate-800 group-hover:text-black">Techno-King</span>
-          <p class="mt-2 text-slate-600 text-sm">Les 7 péchés capitaux façon Silicon Valley.</p>
-        </button>
-        <button data-test="bdw" class="test-card group p-6 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all border-2 border-transparent hover:border-yellow-500 text-left">
-          <span class="text-2xl font-semibold text-slate-800 group-hover:text-black">Citoyenneté Belge</span>
-          <p class="mt-2 text-slate-600 text-sm">Test de citoyenneté belge neutre.</p>
-        </button>
-        <button data-test="trump" class="test-card group p-6 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all border-2 border-transparent hover:border-amber-500 text-left">
-          <span class="text-2xl font-semibold text-slate-800 group-hover:text-black">The Winner's Path</span>
-          <p class="mt-2 text-slate-600 text-sm">Découvrez votre potentiel de gagnant.</p>
-        </button>
-        <button data-test="putin" class="test-card group p-6 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all border-2 border-transparent hover:border-red-900 text-left">
-          <span class="text-2xl font-semibold text-slate-800 group-hover:text-black">Interrogation 7-S</span>
-          <p class="mt-2 text-slate-600 text-sm">Protocole de sécurité d'État.</p>
-        </button>
+    <!-- Accueil : façade institutionnelle (ne montre pas les leaders) -->
+    <div id="view-selector" class="min-h-screen flex flex-col items-center justify-center p-8 bg-[#f6f4ef]">
+      <div class="w-full max-w-4xl">
+        <div class="mb-10">
+          <h1 class="text-4xl md:text-5xl font-serif font-bold text-slate-800">Mycélium</h1>
+          <p class="text-slate-600 mt-2">Test de Compatibilité Universelle</p>
+          <p class="text-slate-500 text-sm mt-3 max-w-2xl">Veuillez sélectionner un protocole. Les réponses seront utilisées pour optimiser votre profil de compatibilité.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <button data-test="trump" class="test-card group p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-all border border-slate-200 hover:border-slate-300 text-left">
+            <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 1 : Analyse de la structure de l'ego</span>
+            <p class="mt-2 text-slate-600 text-sm">Temps estimé : 5 minutes. Répondez avec honnêteté pour des résultats optimaux.</p>
+          </button>
+          <button data-test="musk" class="test-card group p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-all border border-slate-200 hover:border-slate-300 text-left">
+            <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 2 : Évaluation cognitive et spatiale</span>
+            <p class="mt-2 text-slate-600 text-sm">Temps estimé : 5 minutes. Répondez avec honnêteté pour des résultats optimaux.</p>
+          </button>
+          <button data-test="bdw" class="test-card group p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-all border border-slate-200 hover:border-slate-300 text-left">
+            <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 3 : Étude sur la cohésion des structures</span>
+            <p class="mt-2 text-slate-600 text-sm">Temps estimé : 5 minutes. Répondez avec honnêteté pour des résultats optimaux.</p>
+          </button>
+          <button data-test="putin" class="test-card group p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-all border border-slate-200 hover:border-slate-300 text-left">
+            <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 4 : Protocole de stabilité systémique</span>
+            <p class="mt-2 text-slate-600 text-sm">Temps estimé : 5 minutes. Répondez avec honnêteté pour des résultats optimaux.</p>
+          </button>
+        </div>
+        <p class="text-slate-400 text-xs mt-10">Version d'évaluation interne • Mycelium - The Rigged Personality Engine</p>
       </div>
     </div>
 

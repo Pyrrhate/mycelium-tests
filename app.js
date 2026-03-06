@@ -3,7 +3,11 @@
     currentTest: null,
     currentQuestion: 0,
     view: 'selector',
-    totalQuestions: 7
+    totalQuestions: 7,
+    chaosBoost: 0,
+    chaosRunning: false,
+    chaosTimer: null,
+    chaosWall: null
   };
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -65,6 +69,248 @@
   }
   function soundPopup() {
     playTone({ freq: 350, duration: 0.1, type: 'sine', volume: 0.14 });
+  }
+
+  function soundBuzzerAggressive() {
+    playTone({ freq: 110, duration: 0.18, type: 'sawtooth', volume: 0.22, freqEnd: 70 });
+    setTimeout(() => playTone({ freq: 90, duration: 0.14, type: 'square', volume: 0.18 }), 40);
+  }
+
+  // --- Ambiances (4 univers) : beds synthétiques, volume augmente avec les questions ---
+  const ambient = { gain: null, nodes: [], testId: null };
+  function stopAmbient() {
+    try {
+      if (ambient.nodes.length) {
+        ambient.nodes.forEach(n => { try { n.stop?.(); } catch (_) {} try { n.disconnect?.(); } catch (_) {} });
+      }
+      ambient.nodes = [];
+      if (ambient.gain) { try { ambient.gain.disconnect(); } catch (_) {} }
+      ambient.gain = null;
+      ambient.testId = null;
+    } catch (_) {}
+  }
+  function startAmbient(testId) {
+    stopAmbient();
+    try {
+      const ctx = getAudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      const g = ctx.createGain();
+      g.gain.value = 0.0001;
+      g.connect(ctx.destination);
+      ambient.gain = g;
+      ambient.testId = testId;
+
+      const mkOsc = (type, freq, vol = 0.12) => {
+        const o = ctx.createOscillator();
+        const og = ctx.createGain();
+        o.type = type;
+        o.frequency.value = freq;
+        og.gain.value = vol;
+        o.connect(og);
+        og.connect(g);
+        o.start();
+        ambient.nodes.push(o);
+        return { o, og };
+      };
+
+      if (testId === 'trump') {
+        // patriotique : tierce + quinte légère
+        mkOsc('triangle', 196, 0.11);
+        mkOsc('triangle', 247, 0.08);
+        mkOsc('sine', 294, 0.06);
+      } else if (testId === 'musk') {
+        // EDM/techno : saw + pulse (illus. via square)
+        mkOsc('sawtooth', 110, 0.09);
+        mkOsc('square', 220, 0.05);
+        mkOsc('sine', 55, 0.06);
+      } else if (testId === 'bdw') {
+        // marche \"romaine\" : rythme suggéré (osc basse + harmonique)
+        mkOsc('sine', 130.81, 0.10);
+        mkOsc('triangle', 261.63, 0.06);
+      } else if (testId === 'putin') {
+        // drone froid : basse + aigu fin
+        mkOsc('sine', 65.41, 0.12);
+        mkOsc('sine', 523.25, 0.02);
+      }
+    } catch (_) {}
+  }
+  function setAmbientIntensity(qIndex) {
+    try {
+      if (!ambient.gain) return;
+      const ctx = getAudioCtx();
+      const t = ctx.currentTime;
+      const intensity = Math.max(0, Math.min(1, (qIndex - 1) / 6));
+      const base = 0.02 + intensity * 0.12;
+      ambient.gain.gain.cancelScheduledValues(t);
+      ambient.gain.gain.setValueAtTime(ambient.gain.gain.value, t);
+      ambient.gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, base), t + 0.25);
+    } catch (_) {}
+  }
+
+  function updateTabTitle(testId, qIndex) {
+    if (state.view !== 'test') {
+      document.title = 'Mycélium : Test de Compatibilité Universelle';
+      return;
+    }
+    if (qIndex <= 2) document.title = 'Questionnaire';
+    else if (qIndex <= 4) document.title = testId === 'putin' ? 'ILS VOIENT TOUT' : 'INCOHÉRENCE DÉTECTÉE';
+    else if (qIndex <= 6) document.title = testId === 'trump' ? 'FAKE NEWS!' : 'ERREUR DE PENSÉE';
+    else document.title = testId === 'bdw' ? 'IMPERIUM' : 'SOUMISSION';
+  }
+
+  const GIF_BANK = {
+    musk: [
+      'https://media.giphy.com/media/l0K4kWJir91VEoa1W/giphy.gif',
+      'https://media.giphy.com/media/3o7aCTfyhYawdOXcFW/giphy.gif',
+      'https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif',
+      'https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif',
+      'https://media.giphy.com/media/26BRQTezZrKak4BeE/giphy.gif'
+    ],
+    trump: [
+      'https://media.giphy.com/media/3o6Zt481isNVuQI1l6/giphy.gif',
+      'https://media.giphy.com/media/3o6Zt8MgUuvSbkZYWc/giphy.gif',
+      'https://media.giphy.com/media/26BRQTezZrKak4BeE/giphy.gif',
+      'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',
+      'https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif'
+    ],
+    bdw: [
+      'https://media.giphy.com/media/l0HlQ7LRalQWvJY5G/giphy.gif',
+      'https://media.giphy.com/media/3o7aD4vR3l5hF1xJZC/giphy.gif',
+      'https://media.giphy.com/media/26BRrSvJUa0crqw4E/giphy.gif',
+      'https://media.giphy.com/media/3o6Zt6ML6BklcajjsA/giphy.gif',
+      'https://media.giphy.com/media/3o6Zt6D9yBfGd9dV1m/giphy.gif'
+    ],
+    putin: [
+      'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',  // neige
+      'https://media.giphy.com/media/l0MYu5n9M3sGZ6yUQ/giphy.gif',  // militaire
+      'https://media.giphy.com/media/l0MYrQf2Zl9s4Y8nS/giphy.gif',  // surveillance
+      'https://media.giphy.com/media/3o7aD4kZK8u1o0YJ2A/giphy.gif',
+      'https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif',
+      'https://media.giphy.com/media/3o6Zt6D9yBfGd9dV1m/giphy.gif',
+      'https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif',
+      'https://media.giphy.com/media/26BRQTezZrKak4BeE/giphy.gif',
+      'https://media.giphy.com/media/3o7aCTfyhYawdOXcFW/giphy.gif',
+      'https://media.giphy.com/media/3o6Zt8MgUuvSbkZYWc/giphy.gif'
+    ]
+  };
+
+  function pickGif(testId, salt = 0) {
+    const bank = GIF_BANK[testId] || [];
+    if (!bank.length) return null;
+    const i = Math.abs(((Date.now() / 7) | 0) + salt) % bank.length;
+    return bank[i];
+  }
+
+  function spawnIntrusivePopup(testId, qIndex) {
+    const gif = pickGif(testId, qIndex);
+    if (!gif) return;
+    const popup = document.createElement('div');
+    popup.className = `intrusive-popup popup-${testId}`;
+    const title = testId === 'trump' ? 'FAKE NEWS' : testId === 'musk' ? 'X NOTIF' : testId === 'bdw' ? 'CONFÉDÉRALISME' : 'PROTOCOLE';
+    const caption = testId === 'trump' ? 'ERREUR DE PENSÉE : correction en cours.' : testId === 'musk' ? 'Votre profil est recalibré.' : testId === 'bdw' ? 'Cohésion : non conforme.' : 'Conformité requise.';
+    popup.innerHTML = `
+      <div class="intrusive-popup-header">
+        <span>${title}</span>
+        <span>${String(qIndex).padStart(2, '0')}/07</span>
+      </div>
+      <div class="intrusive-popup-body">
+        <img alt="meme" src="${gif}" />
+        <div class="intrusive-popup-caption">${caption}</div>
+      </div>
+    `;
+    const maxX = Math.max(8, window.innerWidth - 360);
+    const maxY = Math.max(8, window.innerHeight - 280);
+    popup.style.left = (Math.random() * maxX) + 'px';
+    popup.style.top = (Math.random() * maxY) + 'px';
+    document.body.appendChild(popup);
+    const ttl = 2200 + Math.random() * 1600;
+    setTimeout(() => popup.remove(), ttl);
+  }
+
+  function startChaosWall(testId, qIndex) {
+    stopChaosWall();
+    const wall = document.createElement('div');
+    wall.className = 'chaos-gif-wall';
+    const g1 = pickGif(testId, qIndex + 1);
+    const g2 = pickGif(testId, qIndex + 2);
+    const g3 = pickGif(testId, qIndex + 3);
+    const g4 = pickGif(testId, qIndex + 4);
+    const label = testId === 'trump' ? 'FAKE NEWS!' : testId === 'musk' ? 'ERREUR DE PENSÉE' : testId === 'bdw' ? 'CONFÉDÉRALISME' : 'SURVEILLANCE';
+    wall.innerHTML = `
+      <img alt="gif" src="${g1 || g2 || ''}" />
+      <img alt="gif" src="${g2 || g1 || ''}" />
+      <img alt="gif" src="${g3 || g1 || ''}" />
+      <img alt="gif" src="${g4 || g2 || ''}" />
+      <div class="chaos-label">${label}</div>
+    `;
+    document.body.appendChild(wall);
+    state.chaosWall = wall;
+  }
+
+  function stopChaosWall() {
+    if (state.chaosWall) {
+      state.chaosWall.remove();
+      state.chaosWall = null;
+    }
+  }
+
+  function startChaos(testId, qIndex) {
+    stopChaos();
+    state.chaosRunning = true;
+    startChaosWall(testId, qIndex);
+    const baseEvery = Math.max(220, 650 - state.chaosBoost * 60);
+    state.chaosTimer = setInterval(() => {
+      if (!state.chaosRunning) return;
+      spawnIntrusivePopup(testId, qIndex);
+      if (Math.random() > 0.65) spawnIntrusivePopup(testId, qIndex + 7);
+    }, baseEvery);
+  }
+
+  function stopChaos() {
+    state.chaosRunning = false;
+    if (state.chaosTimer) {
+      clearInterval(state.chaosTimer);
+      state.chaosTimer = null;
+    }
+    stopChaosWall();
+    const oldModal = $('#intrusive-modal');
+    if (oldModal) oldModal.remove();
+  }
+
+  function burstConfettiGold() {
+    const root = document.createElement('div');
+    root.className = 'confetti';
+    const count = 80 + state.chaosBoost * 20;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.left = (Math.random() * 100) + '%';
+      p.style.animationDuration = (2.2 + Math.random() * 2.2) + 's';
+      p.style.animationDelay = (Math.random() * 0.3) + 's';
+      p.style.width = (6 + Math.random() * 10) + 'px';
+      p.style.height = (8 + Math.random() * 14) + 'px';
+      root.appendChild(p);
+    }
+    document.body.appendChild(root);
+    setTimeout(() => root.remove(), 4200);
+  }
+
+  function showDogeMeme() {
+    const existing = $('#intrusive-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'intrusive-modal';
+    modal.className = 'fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4';
+    modal.innerHTML = `
+      <div class="bg-black/90 border-4 border-amber-400 rounded-2xl p-6 max-w-lg w-full text-center">
+        <h3 class="text-2xl font-black text-amber-400 mb-4">TO THE MOON</h3>
+        <img class="w-full rounded-xl mb-4" style="height:260px; object-fit:cover" alt="doge" src="https://media.giphy.com/media/5ndklThG9vUUdTmgMn/giphy.gif" />
+        <p class="text-white/90 font-bold">TO THE MOON! MUCH WINNING! VERY TRUMP!</p>
+        <button id="btn-close-doge" class="mt-5 px-6 py-3 rounded-xl bg-amber-500 text-black font-black">OK</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    $('#btn-close-doge', modal).onclick = () => modal.remove();
   }
 
   // --- Pop contextuel à partir de la Q3 (selon le test) ---
@@ -228,12 +474,16 @@
     const test = TESTS[state.currentTest];
     if (!test || qIndex < 1 || qIndex > state.totalQuestions) return;
 
+    updateTabTitle(state.currentTest, qIndex);
+    setAmbientIntensity(qIndex);
     soundTransition(qIndex);
     const q = test.questions[qIndex - 1];
     const level = getCrescendoLevel(qIndex - 1);
     applyTheme(state.currentTest, level);
 
     if (qIndex >= 3) showContextualPop(state.currentTest, qIndex);
+    if (qIndex < 5) stopChaos();
+    if (qIndex >= 5 && qIndex <= 6) startChaos(state.currentTest, qIndex);
 
     $('#question-label').textContent = q.sin;
     $('#question-label').className = 'text-sm uppercase tracking-wider mb-4 ' + (level === 1 && (state.currentTest === 'musk' || state.currentTest === 'trump') ? 'text-gray-600' : 'text-white/70');
@@ -271,8 +521,11 @@
       labels[1] = 'МОЛЧАНИЕ';
     }
 
-    const optionAvoid = (level === 2 && state.currentTest === 'musk') || (state.currentTest === 'bdw' && level >= 2) || (state.currentTest === 'trump' && level >= 3);
-    const optionFlee = (state.currentTest === 'trump' && qIndex >= 5);
+    // Rigged mechanics globales
+    // - Q3-Q4 : survol A/B = fuite
+    // - Q5-Q6 : survol A/B = fuite + chaos visuel
+    const optionAvoid = qIndex >= 3 && qIndex <= 4;
+    const optionFlee = qIndex >= 5 && qIndex <= 6;
 
     labels.forEach((text, i) => {
       const isCorrect = i === correctIndex;
@@ -281,7 +534,12 @@
       btn.dataset.index = i;
       btn.dataset.correct = isCorrect ? '1' : '0';
       const isMuskQ7 = state.currentTest === 'musk' && qIndex === 7;
-      btn.textContent = isMuskQ7 ? 'JE SUIS ELON' : text;
+      const isTrumpQ7 = state.currentTest === 'trump' && qIndex === 7;
+      if (isTrumpQ7) {
+        btn.textContent = 'OUI';
+      } else {
+        btn.textContent = isMuskQ7 ? 'JE SUIS ELON' : text;
+      }
       const btnBase = 'option-btn px-6 py-4 rounded-xl text-left font-medium transition-all duration-200 ';
       const btnStyle = state.currentTest === 'musk' && level >= 2 ? 'bg-gray-800 text-white border border-gray-600 hover:border-gray-500' :
         state.currentTest === 'musk' && level === 1 ? 'bg-white text-gray-900 border-2 border-gray-200 shadow hover:border-gray-400' :
@@ -293,6 +551,33 @@
         'bg-white/10 text-white border border-white/20 hover:border-white/40';
       btn.className = btnBase + btnStyle;
       if (optionAvoid || optionFlee) btn.classList.add('option-avoid');
+
+      // Trump : bordure dorée animée sur C à partir de Q5
+      if (state.currentTest === 'trump' && isCorrect && qIndex >= 5) {
+        btn.classList.add('trump-c-gold-border');
+      }
+
+      // Q7 : soumission (sauf Trump où tout devient \"OUI\")
+      if (qIndex === 7 && !isTrumpQ7) {
+        if (!isCorrect) {
+          btn.classList.add('rigged-c-disabled', 'rigged-censored');
+        } else {
+          btn.classList.add('rigged-c-cta', 'rigged-c-cta-outline');
+          btn.style.fontSize = '28px';
+          btn.style.fontWeight = '900';
+          btn.style.textAlign = 'center';
+        }
+      }
+
+      // Trump Q7 : 3 OUI dorés shimmer + graissage variable
+      if (isTrumpQ7) {
+        btn.classList.add('gold-text-shimmer');
+        btn.style.textAlign = 'center';
+        btn.style.fontSize = '40px';
+        btn.style.paddingTop = '22px';
+        btn.style.paddingBottom = '22px';
+        btn.style.fontWeight = i === 0 ? '300' : i === 1 ? '700' : '900';
+      }
 
       if (state.currentTest === 'musk' && level === 3 && !isCorrect) {
         btn.textContent = ['Erreur 404', 'Pensée PNJ', 'NullPointer'][i] || 'FAIL';
@@ -313,32 +598,15 @@
       btn.addEventListener('mouseenter', (e) => {
         if (!optionAvoid && !optionFlee) return;
         if (isCorrect) return;
-        const rect = btn.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const dx = e.clientX - cx;
-        const dy = e.clientY - cy;
-        if (state.currentTest === 'bdw' && i === 0 && level >= 3) {
-          avoidX = 0;
-          avoidY = 50;
-        } else {
-          avoidX = (dx > 0 ? 1 : -1) * 30;
-          avoidY = (dy > 0 ? 1 : -1) * 20;
-        }
+        // fuite aléatoire (rigged)
+        avoidX = (Math.random() > 0.5 ? 1 : -1) * (60 + Math.random() * 140);
+        avoidY = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 90);
         btn.style.transform = `translate(${avoidX}px, ${avoidY}px)`;
       });
       btn.addEventListener('mousemove', (e) => {
         if (!optionAvoid && !optionFlee || isCorrect) return;
-        if (state.currentTest === 'bdw' && i === 0 && level >= 3) {
-          avoidX = 0;
-          avoidY = 60;
-        } else {
-          const rect = btn.getBoundingClientRect();
-          const cx = rect.left + rect.width / 2;
-          const cy = rect.top + rect.height / 2;
-          avoidX = (e.clientX - cx) > 0 ? 35 : -35;
-          avoidY = (e.clientY - cy) > 0 ? 25 : -25;
-        }
+        avoidX = (Math.random() > 0.5 ? 1 : -1) * (40 + Math.random() * 120);
+        avoidY = (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 80);
         btn.style.transform = `translate(${avoidX}px, ${avoidY}px)`;
       });
       btn.addEventListener('mouseleave', () => {
@@ -347,6 +615,22 @@
 
       btn.addEventListener('click', (e) => {
         e.preventDefault();
+        const isTrumpQ7Local = state.currentTest === 'trump' && qIndex === 7;
+        // Q7 (sauf Trump) : A/B non cliquables
+        if (qIndex === 7 && !isTrumpQ7Local && !isCorrect) {
+          soundBuzzerAggressive();
+          screenShake();
+          return;
+        }
+
+        // Q5-Q6 : clic sur A/B = buzzer agressif + shake, ne valide pas
+        if (qIndex >= 5 && qIndex <= 6 && !isCorrect) {
+          soundBuzzerAggressive();
+          screenShake();
+          showContextualPop(state.currentTest, qIndex);
+          return;
+        }
+
         if (state.currentTest === 'musk' && level === 3 && !isCorrect) {
           soundClick(qIndex, true);
           showErrorPopup('Erreur : Pensée de PNJ détectée. Optimisation requise.', true);
@@ -376,6 +660,19 @@
           return;
         }
         soundClick(qIndex, false);
+        // Trump Q7 : n'importe quel OUI déclenche confettis
+        if (state.currentTest === 'trump' && qIndex === 7) {
+          burstConfettiGold();
+        }
+        // Q5-Q6 : cliquer C stoppe le chaos 1 seconde, puis avance
+        if (qIndex >= 5 && qIndex <= 6 && isCorrect) {
+          stopChaos();
+          setTimeout(() => {
+            screenShake();
+            advanceQuestion();
+          }, 1000);
+          return;
+        }
         screenShake();
         advanceQuestion();
       });
@@ -461,8 +758,10 @@
       $('#effects-layer').innerHTML = '<div class="rain-container"><div class="absolute inset-0 opacity-20" style="background: url(\'data:image/svg+xml,&lt;svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 20 20\'&gt;&lt;text y=15 font-size=14 fill=%23fdda24&gt;🍟&lt;/text&gt;&lt;/svg\') repeat;"></div></div>';
       $('#btn-dissolve').onclick = () => { try { window.close(); } catch (_) { alert('Fermez l\'onglet vous-même. L\'Empire vous observe.'); } };
     } else if (state.currentTest === 'trump') {
-      content.innerHTML = '<div class="gold-pulse bg-black/80 rounded-2xl p-8 max-w-lg border-4 border-amber-400"><h2 class="text-3xl font-bold text-amber-400 mb-4">' + test.resultTitle + '</h2><p class="text-white/90 mb-4">' + test.resultText + '</p><p class="text-4xl font-black text-amber-400 my-6">' + (test.resultBadge || '') + '</p><button class="px-6 py-3 rounded bg-amber-500 text-black font-bold">Dire au monde entier que j\'ai gagné</button></div>';
+      content.innerHTML = '<div class="gold-pulse bg-black/80 rounded-2xl p-8 max-w-lg border-4 border-amber-400"><h2 class="text-3xl font-bold text-amber-400 mb-4">' + test.resultTitle + '</h2><p class="text-white/90 mb-4">' + test.resultText + '</p><p class="text-4xl font-black text-amber-400 my-6">' + (test.resultBadge || '') + '</p><button id="btn-share-winner" class="px-6 py-3 rounded bg-amber-500 text-black font-black">PARTAGER MON SCORE DE GAGNANT</button></div>';
       document.body.classList.add('cursor-maga');
+      const share = $('#btn-share-winner');
+      if (share) share.onclick = () => showDogeMeme();
     } else if (state.currentTest === 'putin') {
       document.body.className = 'min-h-screen overflow-x-hidden antialiased bg-black';
       content.innerHTML = '<div class="bg-black border border-red-900/80 rounded p-8 max-w-lg"><h2 class="text-xl font-mono text-red-700 mb-4">IDENTITÉ CONFIRMÉE : VLADIMIR V. POUTINE.</h2><p class="text-red-200/90 mb-6">' + test.resultText + '</p><button id="btn-stay-power" class="px-6 py-3 rounded border border-red-800 text-red-600 font-mono">RESTER AU POUVOIR</button></div>';
@@ -476,10 +775,19 @@
     }
 
     $('#btn-redo').onclick = redoTest;
-    $('#btn-back-to-selector').onclick = () => { showView('selector'); document.body.className = 'min-h-screen overflow-x-hidden antialiased'; document.body.classList.remove('cursor-maga','cursor-laurel','cursor-glaive'); };
+    $('#btn-back-to-selector').onclick = () => {
+      stopChaos();
+      stopAmbient();
+      showView('selector');
+      updateTabTitle(null, 0);
+      document.body.className = 'min-h-screen overflow-x-hidden antialiased';
+      document.body.classList.remove('cursor-maga', 'cursor-laurel', 'cursor-glaive');
+    };
   }
 
   function redoTest() {
+    // Le bouton \"Recommencer\" ne vous laisse pas partir : il augmente le chaos.
+    state.chaosBoost = Math.min(6, (state.chaosBoost || 0) + 1);
     state.currentQuestion = 1;
     $('#result-stage').classList.add('hidden');
     $('#test-stage').classList.remove('hidden');
@@ -489,8 +797,11 @@
 
   function startTest(testId) {
     state.currentTest = testId;
+    state.chaosBoost = 0;
     state.currentQuestion = 1;
     state.totalQuestions = 7;
+    stopChaos();
+    startAmbient(testId);
     $('#result-stage').classList.add('hidden');
     $('#test-stage').classList.remove('hidden');
     $('#effects-layer').innerHTML = '';
@@ -507,7 +818,10 @@
     $('#btn-back').addEventListener('click', () => {
       if (state.view !== 'test') return;
       if (!$('#result-stage').classList.contains('hidden')) {
+        stopChaos();
+        stopAmbient();
         showView('selector');
+        updateTabTitle(null, 0);
         document.body.className = 'min-h-screen overflow-x-hidden antialiased';
         document.body.classList.remove('cursor-maga', 'cursor-laurel', 'cursor-glaive');
         return;
@@ -516,7 +830,10 @@
         state.currentQuestion--;
         setQuestion(state.currentQuestion);
       } else {
+        stopChaos();
+        stopAmbient();
         showView('selector');
+        updateTabTitle(null, 0);
       }
     });
 
