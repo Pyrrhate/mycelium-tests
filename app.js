@@ -9,6 +9,120 @@
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
+  // --- Bruitages (Web Audio API) : au moins 2 sons par question, variés selon la question ---
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function playTone(options) {
+    try {
+      const ctx = getAudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      const {
+        freq = 440,
+        duration = 0.08,
+        type = 'sine',
+        volume = 0.15,
+        freqEnd = null,
+        decay = 0.3
+      } = options;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, ctx.currentTime + duration * 0.5);
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration * (1 - decay));
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch (_) {}
+  }
+  // Deux sons par question (hover + click), paramètres différents pour chaque question (qIndex 0-6)
+  const SOUND_PRESETS = [
+    { hover: { freq: 330, duration: 0.06, type: 'sine', volume: 0.12 }, click: { freq: 523, duration: 0.1, type: 'sine', volume: 0.18 }, wrong: { freq: 120, duration: 0.15, type: 'square', volume: 0.12 } },
+    { hover: { freq: 392, duration: 0.05, type: 'triangle', volume: 0.1 }, click: { freq: 587, duration: 0.08, type: 'triangle', volume: 0.15 }, wrong: { freq: 100, duration: 0.2, type: 'sawtooth', volume: 0.1 } },
+    { hover: { freq: 440, duration: 0.07, type: 'sine', volume: 0.11 }, click: { freq: 659, duration: 0.09, type: 'sine', volume: 0.16 }, wrong: { freq: 90, duration: 0.18, type: 'square', volume: 0.11 } },
+    { hover: { freq: 494, duration: 0.055, type: 'triangle', volume: 0.1 }, click: { freq: 698, duration: 0.085, type: 'triangle', volume: 0.14 }, wrong: { freq: 80, duration: 0.22, type: 'sawtooth', volume: 0.1 } },
+    { hover: { freq: 523, duration: 0.065, type: 'sine', volume: 0.12 }, click: { freq: 784, duration: 0.075, type: 'sine', volume: 0.17 }, wrong: { freq: 70, duration: 0.25, type: 'square', volume: 0.12 } },
+    { hover: { freq: 587, duration: 0.05, type: 'triangle', volume: 0.11 }, click: { freq: 880, duration: 0.08, type: 'triangle', volume: 0.15 }, wrong: { freq: 65, duration: 0.2, type: 'sawtooth', volume: 0.11 } },
+    { hover: { freq: 659, duration: 0.06, type: 'sine', volume: 0.13 }, click: { freq: 988, duration: 0.1, type: 'sine', volume: 0.18 }, wrong: { freq: 60, duration: 0.28, type: 'square', volume: 0.13 } }
+  ];
+  function soundHover(qIndex) {
+    const q = Math.max(0, Math.min(qIndex - 1, 6));
+    playTone(SOUND_PRESETS[q].hover);
+  }
+  function soundClick(qIndex, isWrong) {
+    const q = Math.max(0, Math.min(qIndex - 1, 6));
+    if (isWrong && SOUND_PRESETS[q].wrong) playTone(SOUND_PRESETS[q].wrong);
+    else playTone(SOUND_PRESETS[q].click);
+  }
+  function soundTransition(qIndex) {
+    const q = Math.max(0, Math.min(qIndex - 1, 6));
+    playTone({ freq: 400 + q * 80, duration: 0.12, type: 'sine', volume: 0.12, freqEnd: 600 + q * 60 });
+  }
+  function soundPopup() {
+    playTone({ freq: 350, duration: 0.1, type: 'sine', volume: 0.14 });
+  }
+
+  // --- Pop contextuel à partir de la Q3 (selon le test) ---
+  const POP_MESSAGES = {
+    musk: [
+      'Optimisation des réponses en cours...',
+      'X vérifie votre cohérence.',
+      'Algorithme Alpha activé.',
+      'Convergence vers la bonne réponse détectée.',
+      'Bienvenue dans le futur.'
+    ],
+    bdw: [
+      'Nil volentibus arduum.',
+      'La Flandre vous observe.',
+      'O tempora, o mores.',
+      'Transfert budgétaire en attente.',
+      'Ego sum rex. Approchez.'
+    ],
+    trump: [
+      'Ce questionnaire est le plus honnête de l\'histoire !',
+      'Les perdants détestent cette question.',
+      'Garanti 100% sans fraude.',
+      'Cliquez ici pour gagner encore plus.',
+      'Le meilleur test. Un succès phénoménal.'
+    ],
+    putin: [
+      'Session sous surveillance.',
+      'Continuez. Le protocole enregistre.',
+      'Comportement analysé.',
+      'L\'ordre est observé.',
+      'Conformité requise.'
+    ]
+  };
+  function showContextualPop(testId, qIndex) {
+    if (qIndex < 3) return;
+    const messages = POP_MESSAGES[testId];
+    if (!messages) return;
+    const idx = Math.min(qIndex - 3, messages.length - 1);
+    const text = messages[idx];
+    const existing = $('#contextual-pop');
+    if (existing) existing.remove();
+    const pop = document.createElement('div');
+    pop.id = 'contextual-pop';
+    pop.setAttribute('role', 'status');
+    pop.className = 'contextual-pop';
+    const inner = document.createElement('div');
+    inner.className = 'contextual-pop-inner contextual-pop-' + testId;
+    inner.textContent = text;
+    pop.appendChild(inner);
+    document.body.appendChild(pop);
+    requestAnimationFrame(() => pop.classList.add('contextual-pop-visible'));
+    const duration = 3500 + (qIndex * 200);
+    setTimeout(() => {
+      pop.classList.remove('contextual-pop-visible');
+      setTimeout(() => pop.remove(), 400);
+    }, duration);
+  }
+
   function getCrescendoLevel(qIndex) {
     if (qIndex < 2) return 1;
     if (qIndex < 4) return 2;
@@ -94,6 +208,7 @@
     popup.innerHTML = '<div class="bg-gray-900 border-2 border-red-600 text-white p-6 rounded-lg max-w-md text-center"><p class="mb-4">' + message + '</p><button class="px-4 py-2 bg-red-600 rounded">OK</button></div>';
     const btn = popup.querySelector('button');
     btn.onclick = () => {
+      soundPopup();
       document.body.removeChild(popup);
       if (thenSelectC) advanceQuestion();
     };
@@ -113,9 +228,12 @@
     const test = TESTS[state.currentTest];
     if (!test || qIndex < 1 || qIndex > state.totalQuestions) return;
 
+    soundTransition(qIndex);
     const q = test.questions[qIndex - 1];
     const level = getCrescendoLevel(qIndex - 1);
     applyTheme(state.currentTest, level);
+
+    if (qIndex >= 3) showContextualPop(state.currentTest, qIndex);
 
     $('#question-label').textContent = q.sin;
     $('#question-label').className = 'text-sm uppercase tracking-wider mb-4 ' + (level === 1 && (state.currentTest === 'musk' || state.currentTest === 'trump') ? 'text-gray-600' : 'text-white/70');
@@ -191,6 +309,7 @@
       }
 
       let avoidX = 0, avoidY = 0;
+      btn.addEventListener('mouseenter', () => { soundHover(qIndex); });
       btn.addEventListener('mouseenter', (e) => {
         if (!optionAvoid && !optionFlee) return;
         if (isCorrect) return;
@@ -229,20 +348,24 @@
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         if (state.currentTest === 'musk' && level === 3 && !isCorrect) {
+          soundClick(qIndex, true);
           showErrorPopup('Erreur : Pensée de PNJ détectée. Optimisation requise.', true);
           screenShake();
           return;
         }
         if (state.currentTest === 'bdw' && qIndex >= 5 && i === 1) {
+          soundClick(qIndex, true);
           showErrorPopup('Erreur : Transfert budgétaire vers le Sud détecté. Accès refusé.');
           return;
         }
         if (state.currentTest === 'putin' && level >= 3 && !isCorrect) {
+          soundClick(qIndex, false);
           btn.textContent = i === 0 ? 'Ordre' : 'Silence';
-          setTimeout(() => advanceQuestion(), 200);
+          setTimeout(() => { soundTransition(qIndex); advanceQuestion(); }, 200);
           return;
         }
         if (state.currentTest === 'trump' && !isCorrect && level >= 2) {
+          soundClick(qIndex, true);
           container.classList.add('wrong-flash');
           setTimeout(() => container.classList.remove('wrong-flash'), 500);
           const wrong = document.createElement('div');
@@ -252,6 +375,7 @@
           setTimeout(() => wrong.remove(), 400);
           return;
         }
+        soundClick(qIndex, false);
         screenShake();
         advanceQuestion();
       });
@@ -265,7 +389,8 @@
       skip.type = 'button';
       skip.textContent = 'Skip — Executive Time (Regarder Fox News)';
       skip.className = 'mt-4 px-6 py-3 rounded-xl border-2 border-amber-400/50 bg-amber-100/50 text-amber-900 font-medium hover:bg-amber-200/70 transition';
-      skip.onclick = () => { screenShake(); advanceQuestion(); };
+      skip.addEventListener('mouseenter', () => soundHover(qIndex));
+      skip.onclick = () => { soundClick(qIndex, false); soundTransition(qIndex); screenShake(); advanceQuestion(); };
       container.appendChild(skip);
     }
 
