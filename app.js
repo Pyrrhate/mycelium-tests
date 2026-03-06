@@ -7,7 +7,10 @@
     chaosBoost: 0,
     chaosRunning: false,
     chaosTimer: null,
-    chaosWall: null
+    chaosWall: null,
+    activePopups: 0,
+    popupTotal: 0,
+    popupMax: 0
   };
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -202,6 +205,10 @@
   }
 
   function spawnIntrusivePopup(testId, qIndex) {
+    // limite globale de popups visibles et totales par \"run\"
+    if (state.activePopups >= 7) return;
+    if (state.popupMax && state.popupTotal >= state.popupMax) return;
+
     const gif = pickGif(testId, qIndex);
     if (!gif) return;
     const popup = document.createElement('div');
@@ -223,8 +230,48 @@
     popup.style.left = (Math.random() * maxX) + 'px';
     popup.style.top = (Math.random() * maxY) + 'px';
     document.body.appendChild(popup);
+    state.activePopups++;
+    state.popupTotal++;
+
+    // rendre le popup déplaçable (drag via header)
+    const header = popup.querySelector('.intrusive-popup-header');
+    if (header) {
+      header.style.cursor = 'move';
+      let dragging = false;
+      let startX = 0;
+      let startY = 0;
+      let baseLeft = 0;
+      let baseTop = 0;
+      const onMove = (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        popup.style.left = Math.min(Math.max(0, baseLeft + dx), window.innerWidth - popup.offsetWidth) + 'px';
+        popup.style.top = Math.min(Math.max(0, baseTop + dy), window.innerHeight - popup.offsetHeight) + 'px';
+      };
+      const onUp = () => {
+        dragging = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      header.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        dragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = popup.getBoundingClientRect();
+        baseLeft = rect.left;
+        baseTop = rect.top;
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+    }
+
     const ttl = 2200 + Math.random() * 1600;
-    setTimeout(() => popup.remove(), ttl);
+    setTimeout(() => {
+      if (popup.parentNode) popup.remove();
+      state.activePopups = Math.max(0, state.activePopups - 1);
+    }, ttl);
   }
 
   function startChaosWall(testId, qIndex) {
@@ -257,12 +304,19 @@
   function startChaos(testId, qIndex) {
     stopChaos();
     state.chaosRunning = true;
+    // on choisit un nombre de popups total aléatoire (3 à 7)
+    state.popupTotal = 0;
+    state.popupMax = 3 + Math.floor(Math.random() * 5);
     startChaosWall(testId, qIndex);
-    const baseEvery = Math.max(220, 650 - state.chaosBoost * 60);
+    // fréquence plus lente (≈ 1,5–2 s), légèrement impactée par le chaosBoost
+    const baseEvery = Math.max(1400, 2000 - state.chaosBoost * 120);
     state.chaosTimer = setInterval(() => {
       if (!state.chaosRunning) return;
       spawnIntrusivePopup(testId, qIndex);
-      if (Math.random() > 0.65) spawnIntrusivePopup(testId, qIndex + 7);
+      if (state.popupMax && state.popupTotal >= state.popupMax) {
+        clearInterval(state.chaosTimer);
+        state.chaosTimer = null;
+      }
     }, baseEvery);
   }
 
@@ -311,6 +365,33 @@
     `;
     document.body.appendChild(modal);
     $('#btn-close-doge', modal).onclick = () => modal.remove();
+  }
+
+  function showFinalPopup(testId) {
+    const existing = $('#intrusive-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'intrusive-modal';
+    modal.className = 'fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4';
+    const title =
+      testId === 'trump' ? 'DIAGNOSTIC FINAL' :
+      testId === 'musk' ? 'IDENTIFICATION : ALPHA' :
+      testId === 'bdw' ? 'AVERTISSEMENT IMPÉRIAL' :
+      'PROTOCOLE : CLÔTURE';
+    const msg =
+      testId === 'trump' ? 'Le système confirme une compatibilité totale. Merci de votre coopération.' :
+      testId === 'musk' ? 'Votre profil converge. Aucune divergence tolérée.' :
+      testId === 'bdw' ? 'La cohésion est validée. Le reste du pays est secondaire.' :
+      'La session est enregistrée. Aucune issue n’a jamais existé.';
+    modal.innerHTML = `
+      <div class="bg-black/90 border border-white/20 rounded-2xl p-6 max-w-lg w-full text-center">
+        <h3 class="text-xl font-black text-white mb-3">${title}</h3>
+        <p class="text-white/80">${msg}</p>
+        <button id="btn-final-ok" class="mt-5 px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold border border-white/20">OK</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    return modal;
   }
 
   // --- Pop contextuel à partir de la Q3 (selon le test) ---
@@ -482,8 +563,8 @@
     applyTheme(state.currentTest, level);
 
     if (qIndex >= 3) showContextualPop(state.currentTest, qIndex);
-    if (qIndex < 5) stopChaos();
-    if (qIndex >= 5 && qIndex <= 6) startChaos(state.currentTest, qIndex);
+    // On garde les questions lisibles : pas de chaos visuel pendant le questionnaire.
+    stopChaos();
 
     $('#question-label').textContent = q.sin;
     $('#question-label').className = 'text-sm uppercase tracking-wider mb-4 ' + (level === 1 && (state.currentTest === 'musk' || state.currentTest === 'trump') ? 'text-gray-600' : 'text-white/70');
@@ -664,13 +745,10 @@
         if (state.currentTest === 'trump' && qIndex === 7) {
           burstConfettiGold();
         }
-        // Q5-Q6 : cliquer C stoppe le chaos 1 seconde, puis avance
+        // Q5-Q6 : cliquer C avance simplement (le chaos arrive après le test)
         if (qIndex >= 5 && qIndex <= 6 && isCorrect) {
-          stopChaos();
-          setTimeout(() => {
-            screenShake();
-            advanceQuestion();
-          }, 1000);
+          screenShake();
+          advanceQuestion();
           return;
         }
         screenShake();
@@ -771,6 +849,18 @@
         $('#test-stage').classList.remove('hidden');
         $('#effects-layer').innerHTML = '';
         setQuestion(1);
+      };
+    }
+
+    // Le gros chaos (4 grands GIFs + popups intrusifs) arrive APRÈS la popup finale.
+    stopChaos();
+    const finalModal = showFinalPopup(state.currentTest);
+    const ok = $('#btn-final-ok', finalModal);
+    if (ok) {
+      ok.onclick = () => {
+        finalModal.remove();
+        state.chaosBoost = Math.max(state.chaosBoost || 0, 1);
+        startChaos(state.currentTest, 7);
       };
     }
 

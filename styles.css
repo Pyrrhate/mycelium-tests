@@ -173,7 +173,7 @@ body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
 .chaos-gif-wall {
   position: fixed;
   inset: 0;
-  z-index: 45;
+  z-index: 1;
   pointer-events: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
