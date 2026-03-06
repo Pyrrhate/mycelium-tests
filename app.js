@@ -9,6 +9,21 @@
     chaosWall: null
   };
 
+  const SELF_GROWTH_POLES = [
+    { name: "L'Orgueil", creature: "L'Oiselet au Coqueliot", question: "Je ressens un besoin vital que mes accomplissements soient reconnus..." },
+    { name: "L'Avarice", creature: "Le Rat Port-Thésor", question: "J'éprouve une grande difficulté à partager mes ressources..." },
+    { name: "L'Envie", creature: "Le Caméléon aux Miroirs Brisés", question: "Je compare souvent ma situation à celle des autres..." },
+    { name: "La Colère", creature: "Le Taureau de Feu", question: "Mon énergie monte de façon explosive et devient difficile à canaliser." },
+    { name: "La Luxure", creature: "La Sirène Végétale", question: "Je me laisse facilement emporter par mes désirs sensoriels..." },
+    { name: "La Gourmandise", creature: "Le Monticule Affamé", question: "Je consomme souvent au-delà de mes besoins réels..." },
+    { name: "La Paresse", creature: "L'Escargot-Machine", question: "J'ai tendance à remettre systématiquement à plus tard les efforts..." }
+  ];
+  const SG_SCALE = [-2, -1, 0, 1, 2];
+  const SG_LABELS = { '-2': 'Vide', '-1': '', '0': 'Équilibre', '1': '', '2': 'Dominance' };
+  let sgAnswers = [];
+  let sgQuestionIndex = 0;
+  let sgRadarChart = null;
+
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
@@ -348,14 +363,22 @@
     state.view = name;
     const selector = $('#view-selector');
     const test = $('#view-test');
+    const sg = $('#view-self-growth');
     const nav = $('#global-nav');
     if (name === 'selector') {
       selector.classList.remove('hidden');
       test.classList.add('hidden');
+      if (sg) sg.classList.add('hidden');
       nav.classList.add('opacity-0', 'pointer-events-none');
+    } else if (name === 'self-growth') {
+      selector.classList.add('hidden');
+      test.classList.add('hidden');
+      if (sg) sg.classList.remove('hidden');
+      nav.classList.remove('opacity-0', 'pointer-events-none');
     } else {
       selector.classList.add('hidden');
       test.classList.remove('hidden');
+      if (sg) sg.classList.add('hidden');
       nav.classList.remove('opacity-0', 'pointer-events-none');
     }
   }
@@ -781,12 +804,146 @@
     showView('test');
   }
 
+  function setSelfGrowthQuestion() {
+    const pole = SELF_GROWTH_POLES[sgQuestionIndex];
+    $('#sg-label').textContent = 'Pôle ' + (sgQuestionIndex + 1) + ' — ' + pole.name;
+    $('#sg-question').textContent = pole.question;
+    const container = $('#sg-options');
+    container.innerHTML = '';
+    const current = sgAnswers[sgQuestionIndex] ?? 0;
+    SG_SCALE.forEach((v) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'min-w-[52px] px-3 py-3 rounded-lg font-mono text-sm font-medium border transition-all ' +
+        (current === v
+          ? v === 0
+            ? 'bg-[#D4AF37]/30 border-[#D4AF37] text-[#D4AF37]'
+            : v > 0
+              ? 'bg-[#E63946]/20 border-[#E63946] text-[#E63946]'
+              : 'bg-[#457B9D]/20 border-[#457B9D] text-[#457B9D]'
+          : 'bg-white/5 border-white/20 text-[#F1F1E6]/70 hover:border-white/40');
+      btn.innerHTML = v + (SG_LABELS[v] ? '<br><span class="text-xs opacity-80">' + SG_LABELS[v] + '</span>' : '');
+      btn.onclick = () => {
+        sgAnswers[sgQuestionIndex] = v;
+        setSelfGrowthQuestion();
+      };
+      container.appendChild(btn);
+    });
+    $('#sg-next').style.display = sgQuestionIndex === SELF_GROWTH_POLES.length - 1 ? 'inline-block' : 'inline-block';
+    $('#sg-next').textContent = sgQuestionIndex === SELF_GROWTH_POLES.length - 1 ? 'Voir mon résultat' : 'Suivant';
+  }
+
+  function getSynthesis(scores) {
+    const zeros = scores.filter((s) => s >= -0.5 && s <= 0.5).length;
+    const excess = scores.filter((s) => s > 0.5).length;
+    const empty = scores.filter((s) => s < -0.5).length;
+    if (zeros >= 4) return 'Votre réseau est en harmonie. Le Mycélium dore votre chemin.';
+    if (excess > empty) return 'Vos créatures sont bruyantes. L\'écosystème demande une taille de régulation.';
+    if (empty > excess) return 'Le réseau manque de sève. Réveillez vos pôles endormis.';
+    return 'Votre fil de mycélium est en devenir. L\'énergie cherche son équilibre.';
+  }
+
+  function getInterpretation(scores) {
+    const dominant = scores.map((s, i) => ({ score: s, index: i })).filter((x) => Math.abs(x.score) >= 1);
+    dominant.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+    if (dominant.length) {
+      const d = dominant[0];
+      const pole = SELF_GROWTH_POLES[d.index];
+      if (d.score > 0) return 'Votre écosystème est dominé par ' + pole.creature + '. Elle prend forme et s\'exprime fortement.';
+      return 'Une zone de pénombre apparaît dans votre ancrage : ' + pole.creature + ' s\'est retirée.';
+    }
+    return 'Votre fil de mycélium est doré. L\'énergie est intégrée.';
+  }
+
+  function showSelfGrowthResult() {
+    $('#sg-stage').classList.add('hidden');
+    $('#sg-result').classList.remove('hidden');
+    const scores = sgAnswers.map((a) => (a === undefined ? 0 : a));
+    $('#sg-interpretation').textContent = getInterpretation(scores);
+    $('#sg-synthesis').textContent = getSynthesis(scores);
+
+    const canvas = $('#sg-radar');
+    if (sgRadarChart) sgRadarChart.destroy();
+    const values = scores.map((s) => s + 2);
+    const colors = scores.map((s) => {
+      if (s >= -0.5 && s <= 0.5) return 'rgba(212, 175, 55, 0.9)';
+      return s > 0 ? 'rgba(230, 57, 70, 0.9)' : 'rgba(69, 123, 157, 0.9)';
+    });
+    sgRadarChart = new Chart(canvas, {
+      type: 'radar',
+      data: {
+        labels: SELF_GROWTH_POLES.map((p) => p.creature),
+        datasets: [{
+          label: 'Équilibre',
+          data: values,
+          borderColor: colors,
+          backgroundColor: 'rgba(212, 175, 55, 0.1)',
+          borderWidth: 2,
+          pointBackgroundColor: colors,
+          pointBorderColor: '#F1F1E6',
+          pointBorderWidth: 1,
+          pointRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          r: {
+            min: 0,
+            max: 4,
+            ticks: { display: false },
+            pointLabels: { color: '#F1F1E6', font: { size: 11 } },
+            grid: { color: 'rgba(241, 241, 230, 0.15)' },
+            angleLines: { color: 'rgba(241, 241, 230, 0.1)' }
+          }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+  }
+
+  function startSelfGrowth() {
+    sgAnswers = [];
+    sgQuestionIndex = 0;
+    $('#sg-result').classList.add('hidden');
+    $('#sg-stage').classList.remove('hidden');
+    setSelfGrowthQuestion();
+    showView('self-growth');
+  }
+
   function init() {
     $('#view-selector').querySelectorAll('[data-test]').forEach(btn => {
-      btn.addEventListener('click', () => startTest(btn.dataset.test));
+      btn.addEventListener('click', () => {
+        if (btn.dataset.test === 'self-growth') startSelfGrowth();
+        else startTest(btn.dataset.test);
+      });
+    });
+
+    $('#sg-next').addEventListener('click', () => {
+      if (sgQuestionIndex < SELF_GROWTH_POLES.length - 1) {
+        sgQuestionIndex++;
+        setSelfGrowthQuestion();
+      } else {
+        showSelfGrowthResult();
+      }
+    });
+    $('#sg-redo').addEventListener('click', () => {
+      sgAnswers = [];
+      sgQuestionIndex = 0;
+      $('#sg-result').classList.add('hidden');
+      $('#sg-stage').classList.remove('hidden');
+      setSelfGrowthQuestion();
+    });
+    $('#sg-back-to-selector').addEventListener('click', () => {
+      showView('selector');
     });
 
     $('#btn-back').addEventListener('click', () => {
+      if (state.view === 'self-growth') {
+        showView('selector');
+        return;
+      }
       if (state.view !== 'test') return;
       if (!$('#result-stage').classList.contains('hidden')) {
         stopChaos();

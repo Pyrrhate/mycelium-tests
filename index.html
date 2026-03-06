@@ -35,6 +35,10 @@
             <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 4 : Protocole de stabilité systémique</span>
             <p class="mt-2 text-slate-600 text-sm">Temps estimé : 5 minutes. Répondez avec honnêteté pour des résultats optimaux.</p>
           </button>
+          <button data-test="self-growth" class="test-card group p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-all border border-slate-200 hover:border-slate-300 text-left">
+            <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 5 : The Self-Growth Network</span>
+            <p class="mt-2 text-slate-600 text-sm">Test de personnalité poétique — 7 pôles, équilibre intérieur. Honnête et analytique.</p>
+          </button>
         </div>
         <p class="text-slate-400 text-xs mt-10">Version d'évaluation interne • Mycelium - The Rigged Personality Engine</p>
       </div>
@@ -64,6 +68,26 @@
       </div>
     </div>
 
+    <!-- Questionnaire 5 : Self-Growth (vanilla JS, même page) -->
+    <div id="view-self-growth" class="hidden min-h-screen relative bg-[#070B0A]">
+      <div id="sg-stage" class="min-h-screen flex flex-col items-center justify-center p-6 md:p-10">
+        <p id="sg-label" class="text-sm uppercase tracking-wider text-[#D4AF37] mb-2 font-mono"></p>
+        <h2 id="sg-question" class="text-xl md:text-2xl font-serif font-semibold text-[#F1F1E6] text-center mb-8 max-w-2xl leading-tight"></h2>
+        <div id="sg-options" class="flex flex-wrap justify-center gap-2 max-w-2xl"></div>
+        <button id="sg-next" class="mt-8 px-6 py-3 rounded-xl font-medium bg-white/10 hover:bg-white/20 text-[#F1F1E6] border border-white/20 transition-all">Suivant</button>
+      </div>
+      <div id="sg-result" class="hidden min-h-screen flex flex-col items-center justify-center p-6 md:p-10 text-center">
+        <h2 class="font-serif text-2xl font-bold text-[#F1F1E6] mb-4">Votre graphique Mycélium</h2>
+        <div class="w-full max-w-md mx-auto mb-6"><canvas id="sg-radar"></canvas></div>
+        <p id="sg-interpretation" class="text-[#D4AF37] font-serif text-lg max-w-xl mb-2"></p>
+        <p id="sg-synthesis" class="text-[#F1F1E6]/80 text-sm max-w-xl mb-8"></p>
+        <div class="flex gap-4 flex-wrap justify-center">
+          <button id="sg-redo" class="px-6 py-3 rounded-xl font-medium bg-white/10 hover:bg-white/20 text-[#F1F1E6] border border-white/20">Refaire le test</button>
+          <button id="sg-back-to-selector" class="px-6 py-3 rounded-xl font-medium bg-white/10 hover:bg-white/20 text-[#F1F1E6] border border-white/20">Retour à l'accueil</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Barre fixe : Retour (en bas à gauche) -->
     <div id="global-nav" class="fixed bottom-4 left-4 z-50 flex flex-col gap-2 opacity-0 pointer-events-none transition-opacity duration-300">
       <button id="btn-back" class="px-4 py-2 rounded-lg bg-black/60 hover:bg-black/80 text-white text-sm font-medium backdrop-blur">
@@ -75,6 +99,7 @@
     <div id="effects-layer" class="fixed inset-0 pointer-events-none z-40 overflow-hidden"></div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>
