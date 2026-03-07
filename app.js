@@ -366,21 +366,27 @@
     const selector = $('#view-selector');
     const test = $('#view-test');
     const sg = $('#view-self-growth');
+    const temple = $('#view-temple');
+    const dashboard = $('#view-dashboard');
+    const viewPublic = $('#view-public');
     const nav = $('#global-nav');
+    const views = [selector, test, sg, temple, dashboard, viewPublic].filter(Boolean);
+    views.forEach(v => v.classList.add('hidden'));
+    nav.classList.add('opacity-0', 'pointer-events-none');
     if (name === 'selector') {
       selector.classList.remove('hidden');
-      test.classList.add('hidden');
-      if (sg) sg.classList.add('hidden');
-      nav.classList.add('opacity-0', 'pointer-events-none');
+    } else if (name === 'temple') {
+      if (temple) temple.classList.remove('hidden');
+    } else if (name === 'dashboard') {
+      if (dashboard) dashboard.classList.remove('hidden');
+      nav.classList.remove('opacity-0', 'pointer-events-none');
     } else if (name === 'self-growth') {
-      selector.classList.add('hidden');
-      test.classList.add('hidden');
       if (sg) sg.classList.remove('hidden');
       nav.classList.remove('opacity-0', 'pointer-events-none');
+    } else if (name === 'public') {
+      if (viewPublic) viewPublic.classList.remove('hidden');
     } else {
-      selector.classList.add('hidden');
       test.classList.remove('hidden');
-      if (sg) sg.classList.add('hidden');
       nav.classList.remove('opacity-0', 'pointer-events-none');
     }
   }
@@ -1021,16 +1027,49 @@
       });
     }
 
-    try {
-      const history = JSON.parse(localStorage.getItem('mycelium_49_history') || '[]');
-      history.unshift({
-        date: new Date().toISOString(),
-        userName: sgUserName,
-        profileName: hybrid.name,
-        scores: poleAverages
-      });
-      localStorage.setItem('mycelium_49_history', JSON.stringify(history.slice(0, 30)));
-    } catch (_) {}
+    if (window.dataService) {
+      var qm_score = window.dataService.getQuotientMycelien(poleAverages);
+      var maison = window.dataService.getMaison(hybrid.profileKey);
+      var userId = (window._myceliumSession && window._myceliumSession.user && window._myceliumSession.user.id) ? window._myceliumSession.user.id : null;
+      window.dataService.saveSession(poleAverages, hybrid.name, qm_score, maison, sgUserName, userId);
+    } else {
+      var qm_score = 50;
+      var maison = '';
+      try {
+        var history = JSON.parse(localStorage.getItem('mycelium_49_history') || '[]');
+        history.unshift({
+          date: new Date().toISOString(),
+          userName: sgUserName,
+          profileName: hybrid.name,
+          scores: poleAverages
+        });
+        localStorage.setItem('mycelium_49_history', JSON.stringify(history.slice(0, 30)));
+      } catch (_) {}
+    }
+    var qm_score_final = window.dataService ? window.dataService.getQuotientMycelien(poleAverages) : 50;
+    var maison_final = window.dataService ? window.dataService.getMaison(hybrid.profileKey) : '';
+    var attachCta = document.getElementById('sg-attach-cta');
+    if (attachCta) {
+      if (window._myceliumSession) attachCta.classList.add('hidden');
+      else {
+        attachCta.classList.remove('hidden');
+        var gotoAttach = document.getElementById('sg-goto-temple-attach');
+        if (gotoAttach) {
+          gotoAttach.onclick = function () {
+            try {
+              localStorage.setItem('mycelium_pending_attach', JSON.stringify({
+                scores: poleAverages,
+                profileName: hybrid.name,
+                qm_score: qm_score_final,
+                maison: maison_final,
+                userName: sgUserName
+              }));
+            } catch (_) {}
+            showView('temple');
+          };
+        }
+      }
+    }
   }
 
   function exportResults() {
@@ -1352,6 +1391,335 @@
         if (btn.dataset.test === 'self-growth') startSelfGrowth();
         else startTest(btn.dataset.test);
       });
+    });
+
+    // --- Auth : session et redirection ---
+    function updateAuthUI(session) {
+      window._myceliumSession = session;
+      var btnTemple = document.getElementById('btn-goto-temple');
+      var btnDashboard = document.getElementById('btn-goto-dashboard');
+      var btnLogout = document.getElementById('btn-logout');
+      var authStatus = document.getElementById('auth-status');
+      if (btnTemple) btnTemple.classList.toggle('hidden', !!session);
+      if (btnDashboard) btnDashboard.classList.toggle('hidden', !session);
+      if (btnLogout) btnLogout.classList.toggle('hidden', !session);
+      if (authStatus) {
+        authStatus.classList.toggle('hidden', !session);
+        if (session) authStatus.textContent = 'Connecté au réseau';
+      }
+    }
+
+    if (window.authService) {
+      window.authService.getSession().then(function (s) {
+        updateAuthUI(s);
+      });
+      window.authService.onAuthChange(function (session) {
+        updateAuthUI(session);
+        if (session) {
+          var pending = null;
+          try {
+            var raw = localStorage.getItem('mycelium_pending_attach');
+            if (raw) pending = JSON.parse(raw);
+          } catch (_) {}
+          if (pending && window.dataService && session.user) {
+            window.dataService.saveSession(
+              pending.scores,
+              pending.profileName,
+              pending.qm_score,
+              pending.maison,
+              pending.userName,
+              session.user.id
+            );
+            window.dataService.setProfile(session.user.id, {
+              initiate_name: pending.userName || pending.profileName,
+              maison: pending.maison,
+              totem: ''
+            });
+            localStorage.removeItem('mycelium_pending_attach');
+          }
+        }
+      });
+    }
+
+    document.getElementById('btn-goto-temple').addEventListener('click', function () {
+      var msg = document.getElementById('temple-message');
+      if (msg) { msg.classList.add('hidden'); msg.textContent = ''; }
+      showView('temple');
+    });
+
+    document.getElementById('btn-goto-dashboard').addEventListener('click', function () {
+      if (!window.authService) { showView('dashboard'); return; }
+      window.authService.getSession().then(function (session) {
+        if (session) showView('dashboard');
+        else {
+          var msg = document.getElementById('temple-message');
+          if (msg) {
+            msg.textContent = 'Seul un initié peut pénétrer l\'Espace de Sève. Entrez vos identifiants ou prêtez serment.';
+            msg.classList.remove('hidden');
+          }
+          showView('temple');
+        }
+      });
+    });
+
+    document.getElementById('btn-logout').addEventListener('click', function () {
+      if (window.authService) window.authService.signOut().then(function () { updateAuthUI(null); });
+      if (state.view === 'dashboard') showView('selector');
+    });
+
+    // --- Temple (connexion / inscription) ---
+    var templeForm = document.getElementById('temple-form');
+    var templeSubmit = document.getElementById('temple-submit');
+    var templeToggle = document.getElementById('temple-toggle-mode');
+    var templeSignupWrap = document.getElementById('temple-signup-name-wrap');
+    var isSignUpMode = false;
+
+    if (templeToggle) {
+      templeToggle.addEventListener('click', function () {
+        isSignUpMode = !isSignUpMode;
+        templeSignupWrap.classList.toggle('hidden', !isSignUpMode);
+        templeSubmit.textContent = isSignUpMode ? 'Prêter Serment (S\'inscrire)' : 'Entrer dans le Réseau';
+        templeToggle.textContent = isSignUpMode ? 'Déjà initié ? Entrer dans le Réseau' : 'Prêter Serment (S\'inscrire)';
+        document.getElementById('temple-error').classList.add('hidden');
+        document.getElementById('temple-success').classList.add('hidden');
+      });
+    }
+
+    if (templeForm) {
+      templeForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var email = document.getElementById('temple-email').value.trim();
+        var password = document.getElementById('temple-password').value;
+        var errEl = document.getElementById('temple-error');
+        var okEl = document.getElementById('temple-success');
+        errEl.classList.add('hidden');
+        okEl.classList.add('hidden');
+        if (!email || !password) {
+          errEl.textContent = 'Courriel et Clé de Conscience requis.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        templeSubmit.disabled = true;
+        var auth = window.authService;
+        if (!auth) { templeSubmit.disabled = false; return; }
+        var p = isSignUpMode
+          ? auth.signUp(email, password, { display_name: (document.getElementById('temple-display-name') || {}).value || '' })
+          : auth.signIn(email, password);
+        p.then(function (res) {
+          if (res.error) {
+            errEl.textContent = res.error.message || 'Erreur de connexion';
+            errEl.classList.remove('hidden');
+            templeSubmit.disabled = false;
+            return;
+          }
+          okEl.textContent = isSignUpMode ? 'Serment enregistré. Bienvenue dans le réseau.' : 'Vous êtes entré dans le réseau.';
+          okEl.classList.remove('hidden');
+          setTimeout(function () {
+            showView('dashboard');
+            templeSubmit.disabled = false;
+          }, 800);
+        }).catch(function (err) {
+          errEl.textContent = err.message || 'Erreur';
+          errEl.classList.remove('hidden');
+          templeSubmit.disabled = false;
+        });
+      });
+    }
+
+    document.getElementById('temple-back').addEventListener('click', function () {
+      showView('selector');
+    });
+
+    // --- Dashboard ---
+    var dashboardQmChart = null;
+    function loadDashboard(userId) {
+      if (!userId) return;
+      var ds = window.dataService;
+      if (ds.getProfile) {
+        ds.getProfile(userId).then(function (profile) {
+          document.getElementById('dashboard-initiate-name').textContent = (profile && profile.initiate_name) || 'Initié';
+          document.getElementById('dashboard-maison').textContent = 'Maison : ' + ((profile && profile.maison) || '—');
+          document.getElementById('dashboard-totem').textContent = 'Totem : ' + ((profile && profile.totem) || '—');
+          var toggle = document.getElementById('dashboard-public-toggle');
+          if (toggle) toggle.checked = !!(profile && profile.public_constellation);
+          var urlEl = document.getElementById('dashboard-public-url');
+          if (urlEl && profile && profile.slug) {
+            urlEl.textContent = window.location.origin + window.location.pathname + '#/u/' + profile.slug;
+            urlEl.classList.remove('hidden');
+          }
+        });
+      }
+      if (ds.getSessionsForUser) {
+        ds.getSessionsForUser(userId).then(function (sessions) {
+          var canvas = document.getElementById('dashboard-qm-chart');
+          if (!canvas || !window.Chart) return;
+          var labels = sessions.slice().reverse().map(function (s, i) {
+            return s.created_at ? new Date(s.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : 'N' + (i + 1);
+          });
+          var data = sessions.slice().reverse().map(function (s) { return s.qm_score != null ? s.qm_score : 0; });
+          if (dashboardQmChart) dashboardQmChart.destroy();
+          if (labels.length === 0) labels = ['—']; data = [0];
+          dashboardQmChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+              labels: labels,
+              datasets: [{ label: 'QM', data: data, borderColor: '#D4AF37', backgroundColor: 'rgba(212,175,55,0.1)', fill: true, tension: 0.3 }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: { grid: { color: 'rgba(241,241,230,0.1)' } },
+                y: { min: 0, max: 100, grid: { color: 'rgba(241,241,230,0.1)' } }
+              },
+              plugins: { legend: { display: false } }
+            }
+          });
+        });
+      }
+      var history = [];
+      try {
+        history = JSON.parse(localStorage.getItem('mycelium_49_history') || '[]');
+      } catch (_) {}
+      var listEl = document.getElementById('dashboard-archives-list');
+      if (listEl) {
+        if (history.length === 0) {
+          listEl.innerHTML = 'Aucun parchemin enregistré. Vos résultats sont listés ici après chaque test.';
+        } else {
+          listEl.innerHTML = history.slice(0, 10).map(function (h, i) {
+            var d = h.date ? new Date(h.date).toLocaleDateString('fr-FR') : '';
+            return '<p class="text-[#F1F1E6]/80">' + (h.profileName || 'Test') + ' — ' + d + (h.qm_score != null ? ' (QM ' + h.qm_score + ')' : '') + '</p>';
+          }).join('');
+        }
+      }
+      if (ds.getPublicProfiles) {
+        ds.getPublicProfiles(12).then(function (profiles) {
+          var hyphesEl = document.getElementById('dashboard-hyphes-list');
+          if (!hyphesEl) return;
+          if (profiles.length === 0) {
+            hyphesEl.innerHTML = '<span class="text-[#F1F1E6]/60">Aucune hyphe active pour l\'instant.</span>';
+          } else {
+            hyphesEl.innerHTML = profiles.map(function (p) {
+              var name = p.initiate_name || p.slug || 'Initié';
+              return '<a href="#/u/' + (p.slug || '') + '" class="px-3 py-2 rounded-lg bg-white/5 border border-[#D4AF37]/20 text-[#F1F1E6] text-sm hover:border-[#D4AF37]/50 transition">' + name + '</a>';
+            }).join('');
+          }
+        });
+      }
+      var publicToggle = document.getElementById('dashboard-public-toggle');
+      if (publicToggle) {
+        publicToggle.addEventListener('change', function () {
+          var slug = '';
+          ds.getProfile(userId).then(function (profile) {
+            var name = (profile && profile.initiate_name) || '';
+            if (publicToggle.checked && name) slug = ds.slugify(name) || ds.slugify('initie-' + userId.slice(0, 8));
+            ds.setProfile(userId, { public_constellation: publicToggle.checked, slug: slug || null }).then(function () {
+              var urlEl = document.getElementById('dashboard-public-url');
+              if (urlEl) {
+                urlEl.textContent = slug ? (window.location.origin + window.location.pathname + '#/u/' + slug) : '';
+                urlEl.classList.toggle('hidden', !slug);
+              }
+            });
+          });
+        });
+      }
+    }
+
+    document.getElementById('dashboard-back').addEventListener('click', function () {
+      showView('selector');
+    });
+    document.getElementById('dashboard-logout').addEventListener('click', function () {
+      if (window.authService) window.authService.signOut().then(function () { updateAuthUI(null); showView('selector'); });
+    });
+
+    window.showDashboard = function () {
+      showView('dashboard');
+      var session = window._myceliumSession;
+      if (session && session.user) loadDashboard(session.user.id);
+    };
+
+    // Au passage en vue dashboard, recharger les données
+    var dashboardEl = document.getElementById('view-dashboard');
+    if (dashboardEl) {
+      var obs = new MutationObserver(function () {
+        if (!dashboardEl.classList.contains('hidden') && window._myceliumSession && window._myceliumSession.user) {
+          loadDashboard(window._myceliumSession.user.id);
+        }
+      });
+      obs.observe(dashboardEl, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    // Profil public #/u/slug
+    var publicRadarChart = null;
+    function loadPublicProfile(slug) {
+      var loading = document.getElementById('public-loading');
+      var content = document.getElementById('public-content');
+      var errEl = document.getElementById('public-error');
+      if (loading) loading.classList.remove('hidden');
+      if (content) content.classList.add('hidden');
+      if (errEl) errEl.classList.add('hidden');
+      if (!window.dataService || !window.dataService.getProfileBySlug) {
+        if (loading) loading.classList.add('hidden');
+        if (errEl) errEl.classList.remove('hidden');
+        return;
+      }
+      window.dataService.getProfileBySlug(slug).then(function (profile) {
+        if (loading) loading.classList.add('hidden');
+        if (!profile) {
+          if (errEl) errEl.classList.remove('hidden');
+          return;
+        }
+        document.getElementById('public-name').textContent = profile.initiate_name || 'Initié';
+        document.getElementById('public-maison').textContent = 'Maison : ' + (profile.maison || '—');
+        document.getElementById('public-totem').textContent = 'Totem : ' + (profile.totem || '—');
+        if (content) content.classList.remove('hidden');
+        window.dataService.getLastSessionForUser(profile.id).then(function (session) {
+          var canvas = document.getElementById('public-radar');
+          if (!canvas || !window.Chart) return;
+          var keys = window.MYCELIUM_49 && window.MYCELIUM_49.keys ? window.MYCELIUM_49.keys : [];
+          if (!session || keys.length !== 7) return;
+          var vals = [
+            session.score_spore,
+            session.score_ancrage,
+            session.score_expansion,
+            session.score_lyse,
+            session.score_fructification,
+            session.score_absorption,
+            session.score_dormance
+          ].map(function (v) { return (typeof v === 'number' ? v : 0) + 2; });
+          if (publicRadarChart) publicRadarChart.destroy();
+          publicRadarChart = new Chart(canvas, {
+            type: 'radar',
+            data: {
+              labels: keys.map(function (k) { return k.name; }),
+              datasets: [{ label: 'Sève', data: vals, borderColor: '#D4AF37', backgroundColor: 'rgba(212,175,55,0.15)', borderWidth: 2, pointBackgroundColor: '#D4AF37' }]
+            },
+            options: {
+              responsive: true,
+              scales: { r: { min: 0, max: 4, pointLabels: { color: '#F1F1E6' }, grid: { color: 'rgba(241,241,230,0.2)' } } },
+              plugins: { legend: { display: false } }
+            }
+          });
+        });
+      });
+    }
+
+    function checkHash() {
+      var match = window.location.hash.match(/^#\/u\/([a-z0-9-]+)$/);
+      if (match) {
+        showView('public');
+        loadPublicProfile(match[1]);
+      } else {
+        showView('selector');
+      }
+    }
+    window.addEventListener('hashchange', checkHash);
+    checkHash();
+
+    document.getElementById('public-back').addEventListener('click', function (e) {
+      e.preventDefault();
+      window.location.hash = '';
+      showView('selector');
     });
 
     const sgStart49 = document.getElementById('sg-start-49');

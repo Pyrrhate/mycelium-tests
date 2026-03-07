@@ -1,0 +1,91 @@
+import { useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import Chart from 'chart.js/auto';
+import { Sparkles, User } from 'lucide-react';
+import { MYCELIUM_49 } from '../data/mycelium49';
+import { CONSTELLATION_TEXTS } from '../data/profiles49';
+
+const KEYS = MYCELIUM_49.keys;
+
+/**
+ * Affiche la Constellation (radar + profil + explications) à partir du dernier résultat 49 Racines.
+ */
+export default function ConstellationCard({ result }) {
+  const radarRef = useRef(null);
+  const chartInstance = useRef(null);
+
+  useEffect(() => {
+    if (!result?.poleAverages || !radarRef.current) return;
+    const values = result.poleAverages.map((v) => v + 2);
+    const labels = KEYS.map((k) => k.name);
+    if (chartInstance.current) chartInstance.current.destroy();
+    chartInstance.current = new Chart(radarRef.current, {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Sève',
+          data: values,
+          borderColor: '#D4AF37',
+          backgroundColor: 'rgba(212, 175, 55, 0.15)',
+          borderWidth: 2,
+          pointBackgroundColor: '#D4AF37',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          r: {
+            min: 0,
+            max: 4,
+            pointLabels: { color: '#F1F1E6', font: { size: 11 } },
+            grid: { color: 'rgba(241,241,230,0.15)' },
+            angleLines: { color: 'rgba(241,241,230,0.1)' },
+          },
+        },
+        plugins: { legend: { display: false } },
+      },
+    });
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+        chartInstance.current = null;
+      }
+    };
+  }, [result]);
+
+  if (!result?.hybrid) return null;
+
+  const { hybrid, qm, userName } = result;
+  const constellationText = CONSTELLATION_TEXTS[hybrid.profileKey] || 'Votre constellation reflète l\'équilibre de vos clés dominantes.';
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-[#D4AF37]/40 bg-white/5 backdrop-blur-xl p-6 mb-6"
+      style={{ boxShadow: '0 0 40px rgba(212,175,55,0.12), inset 0 1px 0 rgba(255,255,255,0.06)' }}
+    >
+      <h2 className="font-serif text-xl font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+        <Sparkles className="w-6 h-6" />
+        Votre Constellation
+      </h2>
+      {userName && <p className="text-[#D4AF37]/90 text-sm mb-4">{userName}</p>}
+      <div className="w-full max-w-sm mx-auto h-64 mb-6">
+        <canvas ref={radarRef} />
+      </div>
+      <div className="rounded-xl border border-[#D4AF37]/30 bg-[#0d1211]/60 p-4 mb-4">
+        <p className="text-[#D4AF37] font-mono text-xs uppercase tracking-wider mb-1">Profil dominant</p>
+        <p className="font-serif text-xl font-bold text-[#F1F1E6]">{hybrid.name}</p>
+        <p className="text-[#F1F1E6]/85 text-sm mt-2 italic">{hybrid.description}</p>
+      </div>
+      <p className="text-[#F1F1E6]/90 text-sm mb-4 italic border-l-2 border-[#D4AF37]/50 pl-4">
+        {constellationText}
+      </p>
+      <p className="text-[#D4AF37] text-sm">
+        Quotient Mycélien : <strong>{qm}</strong>/100 — {qm >= 70 ? 'Harmonie élevée.' : qm >= 40 ? 'Équilibre en évolution.' : 'Spécialisation marquée.'}
+      </p>
+    </motion.section>
+  );
+}

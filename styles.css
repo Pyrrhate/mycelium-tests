@@ -369,3 +369,12 @@ body.pdf-export-print #sg-export-area canvas {
 body.pdf-export-print #sg-export-area strong,
 body.pdf-export-print #sg-export-area b { color: #000000 !important; }
 body.pdf-export-print #sg-export-area em { color: #000000 !important; }
+
+/* === Temple d'Initiation (Auth) === */
+#view-temple .temple-card {
+  box-shadow: 0 0 40px rgba(212, 175, 55, 0.08);
+}
+#view-temple .temple-input:focus {
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.3);
+}
+#dashboard-qm-chart { color: #F1F1E6; }
