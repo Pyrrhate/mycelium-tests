@@ -1044,105 +1044,146 @@
 
     setTimeout(function doExport() {
       try {
-        if (typeof Chart === 'undefined' || !(window.jspdf && window.jspdf.jsPDF || window.jsPDF)) {
+        const JsPDFClass = (typeof window !== 'undefined' && (
+          (window.jspdf && (window.jspdf.jsPDF || window.jspdf.default)) ||
+          window.jsPDF
+        ));
+        const JsPDF = JsPDFClass ? (window.jspdf && (window.jspdf.jsPDF || window.jspdf.default)) || window.jsPDF : null;
+        if (!JsPDF) {
           hideLoading();
-          alert('Export PDF indisponible (Chart.js ou jsPDF manquant).');
+          alert('Export PDF indisponible : jsPDF n\'a pas été chargé.\n\nOuvrez la page via un serveur HTTP (ex. http://localhost ou Laragon) plutôt qu\'en ouvrant le fichier HTML directement.');
           return;
         }
-        const JsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+
         const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
         const pageW = doc.internal.pageSize.getWidth();
         const pageH = doc.internal.pageSize.getHeight();
-        const margin = 18;
+        const margin = 16;
         const lineHeight = 5;
-        const black = [0, 0, 0];
-        const darkGray = [60, 60, 60];
 
-        function nextPageIfNeeded(y, needSpace) {
-          if (y + (needSpace || 15) > pageH - margin) {
+        function setPageWhite() {
+          doc.setFillColor(255, 255, 255);
+          doc.rect(0, 0, pageW, pageH, 'F');
+          doc.setTextColor(0, 0, 0);
+          doc.setDrawColor(0, 0, 0);
+        }
+
+        function nextPage(y, need) {
+          if (y + (need || 15) > pageH - margin) {
             doc.addPage();
+            setPageWhite();
             return margin;
           }
           return y;
         }
 
-        // Fond blanc (défaut), titre en noir
-        doc.setFillColor(255, 255, 255);
-        doc.rect(0, 0, pageW, pageH, 'F');
-        doc.setTextColor(...black);
-        doc.setFontSize(16);
+        // --- Page 1 : fond blanc, titre, utilisateur, graphique ---
+        setPageWhite();
         doc.setFont('helvetica', 'bold');
-        doc.text('Carte de Conscience Mycélium', pageW / 2, margin, { align: 'center' });
-        let y = margin + 8;
+        doc.setFontSize(18);
+        doc.text('Carte de Conscience Mycélium', pageW / 2, margin + 6, { align: 'center' });
+        let y = margin + 14;
 
         const userName = ($('#sg-user-display') && $('#sg-user-display').textContent) || '';
         if (userName) {
-          doc.setFontSize(11);
           doc.setFont('helvetica', 'normal');
+          doc.setFontSize(11);
           doc.text(userName, pageW / 2, y, { align: 'center' });
           y += 8;
         }
 
-        // Graphique radar noir sur fond blanc (canvas temporaire)
-        const radarW = 400;
-        const radarH = 280;
-        const radarCanvas = document.createElement('canvas');
-        radarCanvas.width = radarW;
-        radarCanvas.height = radarH;
-        const values = poleAverages.map((m) => m + 2);
-        const radarChartPdf = new Chart(radarCanvas, {
-          type: 'radar',
-          data: {
-            labels: keys.map((k) => k.name),
-            datasets: [{
-              label: 'Sève',
-              data: values,
-              borderColor: '#1a1a1a',
-              backgroundColor: 'rgba(0, 0, 0, 0.08)',
-              borderWidth: 2,
-              pointBackgroundColor: '#1a1a1a',
-              pointBorderColor: '#fff',
-              pointBorderWidth: 1,
-              pointRadius: 3
-            }]
-          },
-          options: {
-            responsive: false,
-            maintainAspectRatio: false,
-            layout: { padding: 8 },
-            scales: {
-              r: {
-                min: 0,
-                max: 4,
-                ticks: { display: false },
-                pointLabels: { color: '#1a1a1a', font: { size: 10 } },
-                grid: { color: 'rgba(0,0,0,0.25)' },
-                angleLines: { color: 'rgba(0,0,0,0.2)' }
-              }
-            },
-            plugins: { legend: { display: false } }
+        // Radar dessiné en canvas 2D (noir sur blanc, sans Chart.js)
+        const radarW = 420;
+        const radarH = 260;
+        const can = document.createElement('canvas');
+        can.width = radarW;
+        can.height = radarH;
+        const ctx = can.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, radarW, radarH);
+        const cx = radarW / 2;
+        const cy = radarH / 2;
+        const radius = Math.min(cx, cy) - 48;
+        const n = 7;
+        const values = poleAverages.map((v) => Math.max(0, Math.min(4, v + 2)));
+        const labels = keys.map((k) => k.name);
+
+        ctx.strokeStyle = '#000000';
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.lineWidth = 1.5;
+        ctx.font = 'bold 11px Arial';
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (let i = 0; i < n; i++) {
+          const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+          const x = cx + radius * Math.cos(angle);
+          const yEnd = cy + radius * Math.sin(angle);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(x, yEnd);
+          ctx.stroke();
+          const labelRadius = radius + 28;
+          const lx = cx + labelRadius * Math.cos(angle);
+          const ly = cy + labelRadius * Math.sin(angle);
+          ctx.fillText(labels[i] || '', lx, ly);
+        }
+
+        for (let r = 1; r <= 4; r++) {
+          const R = (radius * r) / 4;
+          ctx.beginPath();
+          for (let i = 0; i <= n; i++) {
+            const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+            const x = cx + R * Math.cos(angle);
+            const y = cy + R * Math.sin(angle);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
           }
-        });
+          ctx.closePath();
+          ctx.stroke();
+        }
 
-        // Fond blanc sous le graphique (canvas final)
-        const radarFinal = document.createElement('canvas');
-        radarFinal.width = radarW;
-        radarFinal.height = radarH;
-        const rCtx = radarFinal.getContext('2d');
-        rCtx.fillStyle = '#ffffff';
-        rCtx.fillRect(0, 0, radarW, radarH);
-        rCtx.drawImage(radarCanvas, 0, 0);
-        radarChartPdf.destroy();
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i <= n; i++) {
+          const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+          const r = (radius * (values[i % n] || 0)) / 4;
+          const x = cx + r * Math.cos(angle);
+          const y = cy + r * Math.sin(angle);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        for (let i = 0; i < n; i++) {
+          const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+          const r = (radius * (values[i] || 0)) / 4;
+          const x = cx + r * Math.cos(angle);
+          const y = cy + r * Math.sin(angle);
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
-        const imgW = pageW - 2 * margin;
-        const imgH = Math.min(55, imgW * (radarH / radarW));
-        const imgData = radarFinal.toDataURL('image/png');
-        doc.addImage(imgData, 'PNG', margin, y, imgW, imgH);
-        y += imgH + 8;
+        let imgW = pageW - 2 * margin;
+        let imgH = imgW * (radarH / radarW);
+        const maxImgH = 78;
+        if (imgH > maxImgH) {
+          imgH = maxImgH;
+          imgW = imgH * (radarW / radarH);
+        }
+        doc.addImage(can.toDataURL('image/png'), 'PNG', margin, y, imgW, imgH);
+        y += imgH + 10;
 
+        // --- Profil dominant ---
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.setTextColor(...black);
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
         const profileName = ($('#sg-profile-name') && $('#sg-profile-name').textContent) || '';
         const profileDesc = ($('#sg-profile-desc') && $('#sg-profile-desc').textContent) || '';
         if (profileName) {
@@ -1151,134 +1192,129 @@
         }
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
-        doc.setTextColor(...darkGray);
         if (profileDesc) {
           const lines = doc.splitTextToSize(profileDesc, pageW - 2 * margin);
           doc.text(lines, margin, y);
           y += lines.length * lineHeight + 6;
         }
 
-        doc.setTextColor(...black);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
+        // --- Constellation ---
         const constellationRaw = ($('#sg-constellation') && $('#sg-constellation').textContent) || '';
         const constellationText = constellationRaw.replace(/^Constellation\s*/i, '').trim();
         if (constellationText) {
-          y = nextPageIfNeeded(y, 25);
+          y = nextPage(y, 22);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
           doc.text('Constellation', margin, y);
           y += lineHeight;
           doc.setFont('helvetica', 'italic');
           doc.setFontSize(9);
-          doc.setTextColor(...darkGray);
           const constLines = doc.splitTextToSize(constellationText, pageW - 2 * margin);
           doc.text(constLines, margin, y);
           y += constLines.length * lineHeight + 4;
           doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...black);
         }
 
+        // --- Intelligence ---
         const intelEl = $('#sg-intelligence');
         const intelText = intelEl ? intelEl.textContent : '';
         if (intelText) {
-          y = nextPageIfNeeded(y, 10);
+          y = nextPage(y, 10);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.text(intelText, margin, y);
           y += lineHeight + 4;
         }
 
+        // --- Synthèse globale ---
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
         const globalText = ($('#sg-global') && $('#sg-global').textContent) || '';
         if (globalText) {
-          y = nextPageIfNeeded(y, 20);
+          y = nextPage(y, 18);
           doc.text('Synthèse globale', margin, y);
           y += lineHeight;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
-          doc.setTextColor(...darkGray);
           const lines = doc.splitTextToSize(globalText, pageW - 2 * margin);
           doc.text(lines, margin, y);
           y += lines.length * lineHeight + 6;
-          doc.setTextColor(...black);
         }
 
+        // --- Analyse par clé ---
         const keyAnalyses = document.getElementById('sg-key-analyses');
         if (keyAnalyses && keyAnalyses.children.length) {
-          y = nextPageIfNeeded(y, 15);
+          y = nextPage(y, 12);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(10);
           doc.text('Analyse par clé', margin, y);
           y += lineHeight + 2;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
-          doc.setTextColor(...darkGray);
           for (let i = 0; i < keyAnalyses.children.length; i++) {
-            y = nextPageIfNeeded(y, 15);
+            y = nextPage(y, 12);
             const text = keyAnalyses.children[i].textContent || '';
             const keyLines = doc.splitTextToSize(text, pageW - 2 * margin);
             doc.text(keyLines, margin, y);
             y += keyLines.length * lineHeight + 2;
           }
           y += 4;
-          doc.setTextColor(...black);
         }
 
+        // --- Réflexions ---
         const refDiv = document.getElementById('sg-reflections');
         if (refDiv && refDiv.children.length) {
+          y = nextPage(y, 12);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(10);
-          doc.text('Réflexions', margin, nextPageIfNeeded(y, 15));
+          doc.text('Réflexions', margin, y);
           y += lineHeight + 2;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
-          doc.setTextColor(...darkGray);
           for (let i = 0; i < refDiv.children.length; i++) {
-            y = nextPageIfNeeded(y, 15);
+            y = nextPage(y, 12);
             const text = refDiv.children[i].textContent || '';
             const refLines = doc.splitTextToSize(text, pageW - 2 * margin);
             doc.text(refLines, margin, y);
             y += refLines.length * lineHeight + 2;
           }
           y += 4;
-          doc.setTextColor(...black);
         }
 
+        // --- Conseil de la forêt ---
         const conseil = ($('#sg-conseil-foret') && $('#sg-conseil-foret').textContent) || '';
         if (conseil) {
-          y = nextPageIfNeeded(y, 20);
+          y = nextPage(y, 18);
           doc.setFont('helvetica', 'italic');
           doc.setFontSize(9);
-          doc.setTextColor(...darkGray);
           const conseilLines = doc.splitTextToSize(conseil, pageW - 2 * margin);
           doc.text(conseilLines, margin, y);
           y += conseilLines.length * lineHeight + 6;
           doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...black);
         }
 
+        // --- Les 7 clés ---
         const creaturesDiv = document.getElementById('sg-creatures');
         if (creaturesDiv && creaturesDiv.children.length) {
-          y = nextPageIfNeeded(y, 25);
+          y = nextPage(y, 20);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(10);
           doc.text('Les 7 clés', margin, y);
           y += lineHeight + 2;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
-          doc.setTextColor(...darkGray);
           for (let i = 0; i < creaturesDiv.children.length; i++) {
-            y = nextPageIfNeeded(y, 12);
+            y = nextPage(y, 10);
             const text = creaturesDiv.children[i].textContent || '';
             const creatureLines = doc.splitTextToSize(text, pageW - 2 * margin);
             doc.text(creatureLines, margin, y);
             y += creatureLines.length * lineHeight + 1;
           }
-          doc.setTextColor(...black);
         }
 
+        y = nextPage(y, 12);
         doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
+        doc.setTextColor(0, 0, 0);
         doc.text('Le réseau ne juge pas, il s\'adapte.', pageW / 2, pageH - 10, { align: 'center' });
 
         doc.save('carte-conscience-mycelium.pdf');
@@ -1287,7 +1323,7 @@
         alert('Erreur lors de la génération du PDF.');
       }
       hideLoading();
-    }, 450);
+    }, 300);
   }
 
   function startSelfGrowth() {

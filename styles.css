@@ -353,3 +353,19 @@ body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
 }
 .sg-profile-symbol.sg-symbol-slow { animation-duration: 18s; }
 .sg-profile-symbol.sg-symbol-fast { animation-duration: 8s; }
+
+/* Export PDF en fallback : fond blanc, texte noir pour lisibilité */
+body.pdf-export-print #sg-export-area,
+body.pdf-export-print #sg-export-area * {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border-color: #ccc !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
+body.pdf-export-print #sg-export-area canvas {
+  background: #ffffff !important;
+}
+body.pdf-export-print #sg-export-area strong,
+body.pdf-export-print #sg-export-area b { color: #000000 !important; }
+body.pdf-export-print #sg-export-area em { color: #000000 !important; }
