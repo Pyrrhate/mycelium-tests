@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { XP_RACINE_ANCREE } from '../data/ranks';
 
 /**
  * V6 — Statut d'initiation et verrouillage du profil public.
- * Le bouton "Activer le Profil Public" n'est disponible que si test_mycelium_completed ET test_totem_completed.
+ * Le bouton "Activer le Profil Public" n'est disponible que si test_mycelium_completed ET test_totem_completed ET xp_seve >= 1500 (Racine Ancrée).
  */
 export function useInitiationStatus(userId) {
   const [profile, setProfile] = useState(null);
@@ -37,10 +38,11 @@ export function useInitiationStatus(userId) {
 
   const testMyceliumCompleted = profile?.test_mycelium_completed === true;
   const testTotemCompleted = profile?.test_totem_completed === true;
-  const canActivatePublic = testMyceliumCompleted && testTotemCompleted;
+  const xpSeve = profile?.xp_seve ?? 0;
+  const hasRacineAncree = xpSeve >= XP_RACINE_ANCREE;
+  const canActivatePublic = testMyceliumCompleted && testTotemCompleted && hasRacineAncree;
   const initiationStep = profile?.initiation_step ?? 1;
   const isPublic = profile?.is_public === true || profile?.public_constellation === true;
-  const xpSeve = profile?.xp_seve ?? 0;
 
   return {
     profile,
@@ -52,6 +54,7 @@ export function useInitiationStatus(userId) {
     initiationStep,
     isPublic,
     xpSeve,
+    elementPrimordial: profile?.element_primordial ?? null,
     refetch: fetchProfile,
   };
 }

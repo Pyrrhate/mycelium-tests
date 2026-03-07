@@ -10,18 +10,27 @@ import {
   Activity,
   Droplets,
 } from 'lucide-react';
-import { PawPrint } from 'lucide-react';
+import { PawPrint, Moon, Flame, Brain, Users, Star } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { save49Result, updateProfile, getMaison } from '../services/myceliumSave';
+import { getResonanceArchives, getActiveForestAwakening } from '../services/myceliumSave';
 import { useInitiationStatus } from '../hooks/useInitiationStatus';
+import { getRankFromXp, getXpProgressForNextRank } from '../data/ranks';
 import { TOTEMS } from '../data/totemData';
 import { ToastContainer } from './Toast';
 import Test49Racines from './Test49Racines';
 import QuestionnaireTotem from './QuestionnaireTotem';
 import VueReseau from './VueReseau';
 import VueEveilQuotidien from './VueEveilQuotidien';
+import VueResonance from './VueResonance';
+import VueElementMaitre from './VueElementMaitre';
+import VueMatriceIntelligence from './VueMatriceIntelligence';
+import VueForet from './VueForet';
+import VueConstellation from './VueConstellation';
 import ConstellationCard from './ConstellationCard';
 import AvatarExplicationsCard from './AvatarExplicationsCard';
+import { generateSeal } from '../utils/sealGenerator';
+import { ELEMENT_TEST, getInitieElementLabel } from '../data/elementQuestions';
 
 /**
  * Mycélium Hub — Dashboard principal
@@ -47,8 +56,10 @@ export default function MyceliumHub({ session, onLogout }) {
       return null;
     }
   });
+  const [resonanceArchives, setResonanceArchives] = useState([]);
+  const [forestAwakening, setForestAwakening] = useState(null);
 
-  const { canActivatePublic, isPublic, xpSeve, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
+  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
 
   const addToast = (msg, variant = 'success') => {
     const id = Math.random().toString(36).slice(2);
@@ -74,6 +85,28 @@ export default function MyceliumHub({ session, onLogout }) {
     fetchPulse();
   }, []);
 
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    getResonanceArchives(session.user.id, 12).then(setResonanceArchives);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    getActiveForestAwakening().then(setForestAwakening);
+    const t = setInterval(() => getActiveForestAwakening().then(setForestAwakening), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const id = elementPrimordial;
+    const color = id ? (ELEMENT_TEST.labels[id]?.color ?? '#D4AF37') : '#D4AF37';
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    document.documentElement.style.setProperty('--accent', color);
+    document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
+  }, [elementPrimordial]);
+
   const handleLogout = async () => {
     if (supabase) await supabase.auth.signOut();
     if (onLogout) onLogout();
@@ -86,35 +119,47 @@ export default function MyceliumHub({ session, onLogout }) {
     { id: 'totem', icon: PawPrint, label: 'Mon Totem' },
     { id: 'reseau', icon: Network, label: 'Le Réseau' },
     { id: 'eveil', icon: Activity, label: 'Éveil Quotidien' },
+    { id: 'resonance', icon: Moon, label: 'La Résonance' },
+    { id: 'element', icon: Flame, label: "L'Élément Maître" },
+    { id: 'matrice', icon: Brain, label: "Matrice d'Intelligence" },
+    { id: 'constellation', icon: Star, label: 'La Constellation' },
+    { id: 'foret', icon: Users, label: 'La Forêt' },
   ];
 
+  const rank = getRankFromXp(xpSeve);
+  const xpProgress = getXpProgressForNextRank(xpSeve);
+
   return (
-    <div className="min-h-screen bg-[#070B0A] text-[#F1F1E6] flex">
+    <div className={`min-h-screen bg-[#070B0A] text-[#F1F1E6] flex ${forestAwakening ? 'forest-awakening' : ''}`}>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-      {/* Sidebar verre */}
+      {/* Sidebar verre — effet verre renforcé + animations organiques */}
       <aside
-        className="w-20 flex-shrink-0 flex flex-col items-center py-6 border-r border-[#D4AF37]/20 backdrop-blur-xl"
+        className="w-20 flex-shrink-0 flex flex-col items-center py-6 border-r border-[var(--accent)]/20"
         style={{
           background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
+          backdropFilter: 'blur(20px)',
         }}
       >
-        <Sparkles className="w-8 h-8 text-[#D4AF37] mb-8" />
-        {navItems.map((item) => (
-          <button
+        <Sparkles className="w-8 h-8 mb-8 accent-color" />
+        {navItems.map((item, i) => (
+          <motion.button
             key={item.id}
             type="button"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.03, duration: 0.2 }}
             onClick={() => setActiveView(item.id)}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition mb-2 ${
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition mb-2 w-full ${
               activeView === item.id
-                ? 'text-[#D4AF37] bg-[#D4AF37]/15'
-                : 'text-[#F1F1E6]/70 hover:text-[#D4AF37] hover:bg-white/5'
+                ? 'accent-color bg-[var(--accent)]/15'
+                : 'text-[#F1F1E6]/70 hover:accent-color hover:bg-white/5'
             }`}
             title={item.label}
           >
             <item.icon className="w-5 h-5" />
             <span className="text-[10px] max-w-full truncate">{item.label}</span>
-          </button>
+          </motion.button>
         ))}
         <div className="mt-auto">
           <button
@@ -166,15 +211,74 @@ export default function MyceliumHub({ session, onLogout }) {
         {activeView === 'eveil' && (
           <VueEveilQuotidien onBack={() => setActiveView('dashboard')} />
         )}
+        {activeView === 'resonance' && (
+          <VueResonance
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            lastResult49={lastResult}
+            onResonanceComplete={() => {
+              if (session?.user?.id) {
+                getResonanceArchives(session.user.id, 12).then(setResonanceArchives);
+                refetchInitiation?.();
+              }
+            }}
+          />
+        )}
+        {activeView === 'element' && (
+          <VueElementMaitre
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            onElementComplete={async (dominant) => {
+              const uid = session?.user?.id;
+              if (uid && dominant?.id) {
+                await updateProfile(uid, { element_primordial: dominant.id });
+                document.documentElement.style.setProperty('--accent', dominant.color ?? '#D4AF37');
+                const hex = (dominant.color ?? '#D4AF37').replace('#', '');
+                const r = parseInt(hex.slice(0, 2), 16);
+                const g = parseInt(hex.slice(2, 4), 16);
+                const b = parseInt(hex.slice(4, 6), 16);
+                document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
+                refetchInitiation?.();
+              }
+            }}
+          />
+        )}
+        {activeView === 'matrice' && (
+          <VueMatriceIntelligence
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            onMatriceComplete={() => refetchInitiation?.()}
+          />
+        )}
+        {activeView === 'constellation' && (
+          <VueConstellation onBack={() => setActiveView('dashboard')} />
+        )}
+        {activeView === 'foret' && (
+          <VueForet onBack={() => setActiveView('dashboard')} />
+        )}
         {activeView === 'dashboard' && (
         <div className="max-w-4xl mx-auto space-y-6">
           <motion.h1
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="font-serif text-2xl font-bold text-[#D4AF37]"
+            className="font-serif text-2xl font-bold accent-color"
           >
             Mycélium Hub
           </motion.h1>
+
+          {forestAwakening && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-4 flex items-center gap-3"
+            >
+              <Sparkles className="w-6 h-6 text-emerald-400 animate-pulse" />
+              <div>
+                <p className="font-medium text-emerald-200">Éveil de la Forêt</p>
+                <p className="text-emerald-200/80 text-sm">Plus de 100 résonances cette semaine. Les avatars brillent pendant 24h.</p>
+              </div>
+            </motion.div>
+          )}
 
           {/* Constellation + Avatar (si un résultat 49 Racines existe) */}
           {lastResult && (
@@ -189,24 +293,24 @@ export default function MyceliumHub({ session, onLogout }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-2xl border border-[#D4AF37]/30 bg-white/5 backdrop-blur-xl p-6"
-            style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08), inset 0 1px 0 rgba(255,255,255,0.05)' }}
+            className="rounded-2xl border border-[var(--accent)]/30 bg-white/5 p-6"
+            style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08), inset 0 1px 0 rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)' }}
           >
-            <h2 className="font-serif text-lg font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+            <h2 className="font-serif text-lg font-bold accent-color mb-4 flex items-center gap-2">
               <User className="w-5 h-5" />
               Votre identité
             </h2>
             <div className="flex flex-wrap items-center gap-6">
               <div
-                className="w-24 h-24 rounded-2xl border border-[#D4AF37]/40 flex items-center justify-center bg-[#0d1211] text-4xl"
-                style={{ boxShadow: '0 0 20px rgba(212,175,55,0.15)' }}
+                className={`w-24 h-24 rounded-2xl border border-[var(--accent)]/40 flex items-center justify-center bg-[#0d1211] text-4xl transition-all duration-500 ${forestAwakening ? 'shadow-[0_0_30px_rgba(52,211,153,0.4)]' : ''}`}
+                style={{ boxShadow: totem && forestAwakening ? '0 0 30px rgba(52,211,153,0.4)' : '0 0 20px rgba(212,175,55,0.15)' }}
               >
                 {totem ? (
                   <span title={totem}>
                     {TOTEMS.find((t) => t.name === totem)?.emoji ?? '✨'}
                   </span>
                 ) : (
-                  <Droplets className="w-10 h-10 text-[#D4AF37]/70" />
+                  <Droplets className="w-10 h-10 text-[var(--accent)]/70" />
                 )}
               </div>
               <div>
@@ -215,17 +319,34 @@ export default function MyceliumHub({ session, onLogout }) {
                 </p>
                 <p className="text-[#F1F1E6]/60 text-sm mt-1">{session?.user?.email}</p>
                 {totem && (
-                  <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-medium">
+                  <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/30 accent-color text-xs font-medium">
                     Totem : {totem}
                   </p>
                 )}
-                <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-medium">
-                  Grade de Sève : Germe
+                <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/30 accent-color text-xs font-medium">
+                  Grade de Sève : {rank.label}
                 </p>
-                {xpSeve > 0 && (
-                  <p className="mt-1 text-[#F1F1E6]/60 text-xs">XP : {xpSeve}</p>
+                {elementPrimordial && (
+                  <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/30 accent-color text-xs font-medium">
+                    {getInitieElementLabel(elementPrimordial)}
+                  </p>
                 )}
-                {/* V6 : Activer le Profil Public (débloqué après 49 Racines + Totem) */}
+                {/* Barre d'XP de Sève */}
+                <div className="mt-3 w-48">
+                  <div className="flex justify-between text-[#F1F1E6]/60 text-xs mb-1">
+                    <span>{xpSeve} XP</span>
+                    {xpProgress.nextLabel && <span>{xpProgress.needed - xpProgress.current} XP → {xpProgress.nextLabel}</span>}
+                  </div>
+                  <div className="h-2 rounded-full bg-[#0d1211] border border-[var(--accent)]/20 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-[var(--accent)]/80 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: xpProgress.needed ? `${(xpProgress.current / xpProgress.needed) * 100}%` : '100%' }}
+                      transition={{ duration: 0.6 }}
+                    />
+                  </div>
+                </div>
+                {/* V6 : Activer la visibilité dans la Forêt (verrouillé jusqu'à 49 Racines + Totem + 1500 XP) */}
                 <div className="mt-4">
                   {canActivatePublic ? (
                     <button
@@ -237,12 +358,12 @@ export default function MyceliumHub({ session, onLogout }) {
                         addToast(isPublic ? 'Profil masqué de la Forêt.' : 'Profil visible dans la Forêt.');
                         if (refetchInitiation) refetchInitiation();
                       }}
-                      className="px-3 py-1.5 rounded-lg border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-medium hover:bg-[#D4AF37]/15 transition"
+                      className="px-3 py-1.5 rounded-lg border border-[var(--accent)]/40 accent-color text-xs font-medium hover:bg-[var(--accent)]/15 transition"
                     >
-                      {isPublic ? 'Masquer de la Forêt' : 'Activer le Profil Public'}
+                      {isPublic ? 'Masquer de la Forêt' : 'Activer la visibilité dans la Forêt'}
                     </button>
                   ) : (
-                    <p className="text-[#F1F1E6]/50 text-xs">Complétez les 49 Racines et le Totem pour activer votre profil public.</p>
+                    <p className="text-[#F1F1E6]/50 text-xs">Complétez les 49 Racines, le Totem et atteignez 1500 XP (Racine Ancrée) pour activer votre profil public.</p>
                   )}
                 </div>
               </div>
@@ -254,21 +375,21 @@ export default function MyceliumHub({ session, onLogout }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl border border-[#D4AF37]/30 bg-white/5 backdrop-blur-xl p-6"
-            style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08), inset 0 1px 0 rgba(255,255,255,0.05)' }}
+            className="rounded-2xl border border-[var(--accent)]/30 bg-white/5 p-6"
+            style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08), inset 0 1px 0 rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)' }}
           >
-            <h2 className="font-serif text-lg font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+            <h2 className="font-serif text-lg font-bold accent-color mb-4 flex items-center gap-2">
               <Activity className="w-5 h-5" />
               Le Réseau — Pouls de la Forêt
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="rounded-xl bg-[#0d1211]/80 border border-[#D4AF37]/20 p-4">
+              <div className="rounded-xl bg-[#0d1211]/80 border border-[var(--accent)]/20 p-4">
                 <p className="text-[#F1F1E6]/60 text-xs uppercase tracking-wider">Moyenne QM</p>
                 <p className="text-2xl font-bold text-[#D4AF37] mt-1">
                   {pulse ? pulse.moyenneQM : '—'}
                 </p>
               </div>
-              <div className="rounded-xl bg-[#0d1211]/80 border border-[#D4AF37]/20 p-4">
+              <div className="rounded-xl bg-[#0d1211]/80 border border-[var(--accent)]/20 p-4">
                 <p className="text-[#F1F1E6]/60 text-xs uppercase tracking-wider">Passages</p>
                 <p className="text-2xl font-bold text-[#F1F1E6] mt-1">
                   {pulse ? pulse.count : '—'}
@@ -290,16 +411,49 @@ export default function MyceliumHub({ session, onLogout }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="rounded-2xl border border-[#D4AF37]/30 bg-white/5 backdrop-blur-xl p-6"
-            style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08), inset 0 1px 0 rgba(255,255,255,0.05)' }}
+            className="rounded-2xl border border-[var(--accent)]/30 bg-white/5 p-6"
+            style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08), inset 0 1px 0 rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)' }}
           >
-            <h2 className="font-serif text-lg font-bold text-[#D4AF37] mb-4">Prochaines étapes</h2>
+            <h2 className="font-serif text-lg font-bold accent-color mb-4">Prochaines étapes</h2>
             <p className="text-[#F1F1E6]/80 text-sm">
               {lastResult
                 ? 'Explorez Le Réseau et l\'Éveil Quotidien, ou refaites le test des 49 Racines pour mettre à jour votre Constellation.'
                 : 'Passez le test des 49 Racines pour révéler votre profil hybride et votre Constellation.'}
             </p>
           </motion.section>
+
+          {/* Archives des Cycles (Résonance du Cycle) */}
+          {resonanceArchives.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              className="rounded-2xl border border-[var(--accent)]/30 bg-white/5 p-6"
+              style={{ boxShadow: '0 0 30px rgba(212,175,55,0.08), inset 0 1px 0 rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)' }}
+            >
+              <h2 className="font-serif text-lg font-bold accent-color mb-4 flex items-center gap-2">
+                <Moon className="w-5 h-5" />
+                Archives des Cycles
+              </h2>
+              <p className="text-[#F1F1E6]/70 text-sm mb-4">Vos Résonances passées et leurs Sceaux du Mois.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {resonanceArchives.map((r) => {
+                  const parts = (r.seal_id || 'spore_ancrage').split('_');
+                  const { svg } = generateSeal(parts[0], parts[1], 64);
+                  const label = r.month_year ? r.month_year.replace(/-/, ' / ') : '';
+                  return (
+                    <div
+                      key={r.id}
+                      className="rounded-xl border border-[var(--accent)]/20 bg-[#0d1211]/60 p-3 text-center"
+                    >
+                      <div className="inline-block mb-2" dangerouslySetInnerHTML={{ __html: svg }} />
+                      <p className="text-[var(--accent)]/90 text-xs font-mono">{label}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.section>
+          )}
         </div>
         )}
       </main>

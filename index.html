@@ -3,8 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- En production : mettre content="/" si le Hub React est servi à la racine (évite 404) -->
-  <meta name="mycelium-hub-url" content="" />
   <title>Mycélium : Test de Compatibilité Universelle</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="styles.css" />
@@ -15,13 +13,6 @@
     <!-- Accueil -->
     <div id="view-selector" class="min-h-screen flex flex-col items-center py-12 px-4 sm:px-6 md:px-8 bg-[#f6f4ef]">
       <div class="w-full max-w-4xl flex flex-col gap-10">
-        <!-- Barre auth : Entrer dans le Réseau / Mycélium Hub (un seul espace connecté) -->
-        <nav class="flex justify-end gap-3">
-          <span id="auth-status" class="text-slate-500 text-sm hidden"></span>
-          <button id="btn-goto-temple" type="button" class="px-4 py-2 rounded-lg border border-[#D4AF37]/50 text-[#1a1f1e] bg-white/80 hover:bg-[#D4AF37]/20 font-medium text-sm transition">Entrer dans le Réseau</button>
-          <button id="btn-goto-hub" type="button" class="hidden px-4 py-2 rounded-lg bg-[#1a1f1e] text-[#D4AF37] border border-[#D4AF37]/40 hover:border-[#D4AF37]/70 font-medium text-sm transition">Mycélium Hub</button>
-          <button id="btn-logout" type="button" class="hidden px-4 py-2 rounded-lg text-slate-600 hover:text-slate-800 text-sm">Se déconnecter</button>
-        </nav>
         <!-- Titre du site -->
         <header class="text-center md:text-left">
           <h1 class="text-4xl md:text-5xl font-serif font-bold text-slate-800 tracking-tight">Bienvenue dans le projet Mycélium</h1>
@@ -73,108 +64,7 @@
       </div>
     </div>
 
-    <!-- Temple d'Initiation (Connexion / Inscription) -->
-    <div id="view-temple" class="hidden min-h-screen flex items-center justify-center p-4 bg-[#070B0A] relative overflow-hidden">
-      <div class="temple-bg absolute inset-0 bg-gradient-to-br from-[#0d1211] via-[#070B0A] to-[#0a0f0e]"></div>
-      <div class="temple-blur absolute inset-0 backdrop-blur-sm opacity-30" style="background: radial-gradient(ellipse 80% 60% at 50% 20%, rgba(212,175,55,0.15), transparent 60%);"></div>
-      <div class="relative z-10 w-full max-w-md">
-        <div class="temple-card rounded-2xl border border-[#D4AF37]/40 bg-white/5 backdrop-blur-md shadow-2xl p-8">
-          <p id="temple-message" class="text-[#D4AF37]/90 text-sm text-center mb-4 italic hidden"></p>
-          <h1 class="font-serif text-2xl font-bold text-[#F1F1E6] text-center mb-2">Le Temple de l'Initiation</h1>
-          <p class="text-[#F1F1E6]/70 text-sm text-center mb-6">Passez le seuil. La sève vous attend.</p>
-          <form id="temple-form" class="space-y-4">
-            <div>
-              <label for="temple-email" class="block text-[#D4AF37] text-sm mb-1">Courriel du Réseau</label>
-              <input type="email" id="temple-email" required placeholder="vous@exemple.com" class="temple-input w-full px-4 py-3 rounded-xl bg-white/5 border border-[#D4AF37]/30 text-[#F1F1E6] placeholder-[#F1F1E6]/40 focus:border-[#D4AF37]/60 focus:ring-1 focus:ring-[#D4AF37]/30 outline-none transition" />
-            </div>
-            <div>
-              <label for="temple-password" class="block text-[#D4AF37] text-sm mb-1">Clé de Conscience</label>
-              <input type="password" id="temple-password" required placeholder="••••••••" class="temple-input w-full px-4 py-3 rounded-xl bg-white/5 border border-[#D4AF37]/30 text-[#F1F1E6] placeholder-[#F1F1E6]/40 focus:border-[#D4AF37]/60 focus:ring-1 focus:ring-[#D4AF37]/30 outline-none transition" />
-            </div>
-            <div id="temple-signup-name-wrap" class="hidden">
-              <label for="temple-display-name" class="block text-[#D4AF37] text-sm mb-1">Comment devons-nous vous nommer ?</label>
-              <input type="text" id="temple-display-name" placeholder="Prénom ou nom d'initié" class="temple-input w-full px-4 py-3 rounded-xl bg-white/5 border border-[#D4AF37]/30 text-[#F1F1E6] placeholder-[#F1F1E6]/40 focus:border-[#D4AF37]/60 outline-none transition" />
-            </div>
-            <p id="temple-error" class="text-red-400 text-sm text-center hidden"></p>
-            <p id="temple-success" class="text-[#D4AF37] text-sm text-center hidden"></p>
-            <div class="flex flex-col gap-2 pt-2">
-              <button type="submit" id="temple-submit" class="w-full py-3 rounded-xl font-medium bg-[#D4AF37]/90 hover:bg-[#D4AF37] text-[#070B0A] transition">Entrer dans le Réseau</button>
-              <button type="button" id="temple-toggle-mode" class="text-[#D4AF37]/80 text-sm hover:text-[#D4AF37] transition">Prêter Serment (S'inscrire)</button>
-            </div>
-          </form>
-          <button type="button" id="temple-back" class="mt-6 w-full py-2 text-[#F1F1E6]/60 text-sm hover:text-[#F1F1E6] transition">← Retour à l'accueil</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Redirection : tout l’espace connecté est dans l’app React (Mycélium Hub). Ce bloc n’est plus affiché. -->
-    <div id="view-dashboard" class="hidden min-h-screen bg-[#070B0A] text-[#F1F1E6] pb-24">
-      <header class="sticky top-0 z-20 py-4 px-4 bg-[#070B0A]/95 border-b border-[#D4AF37]/20 flex items-center justify-between flex-wrap gap-2">
-        <h1 class="font-serif text-xl font-bold text-[#D4AF37]">Mycélium Hub</h1>
-        <div class="flex items-center gap-3">
-          <p id="dashboard-sync-status" class="text-[#D4AF37]/80 text-xs flex items-center gap-1">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Votre sève est synchronisée au réseau global.
-          </p>
-          <button id="dashboard-logout" type="button" class="px-3 py-1.5 rounded-lg border border-white/20 text-sm hover:bg-white/10">Se déconnecter</button>
-        </div>
-      </header>
-      <main class="max-w-4xl mx-auto px-4 py-6 space-y-8">
-        <!-- Identité -->
-        <section class="rounded-2xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <h2 class="font-serif text-lg font-bold text-[#D4AF37] mb-3">Votre identité</h2>
-          <p id="dashboard-initiate-name" class="text-xl font-semibold text-[#F1F1E6]">—</p>
-          <p id="dashboard-maison" class="text-[#F1F1E6]/80 text-sm mt-1">Maison : —</p>
-          <p id="dashboard-totem" class="text-[#F1F1E6]/80 text-sm">Totem : —</p>
-          <div id="dashboard-totem-avatar" class="mt-4 w-32 h-32 mx-auto rounded-xl bg-[#0d1211] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]/60 text-sm">Avatar 3D</div>
-        </section>
-        <!-- Historique de Sève (QM sur 5 derniers tests) -->
-        <section class="rounded-2xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <h2 class="font-serif text-lg font-bold text-[#D4AF37] mb-3">Historique de Sève</h2>
-          <p class="text-[#F1F1E6]/70 text-sm mb-4">Évolution de votre Quotient Mycélien (5 derniers passages).</p>
-          <div class="h-48"><canvas id="dashboard-qm-chart"></canvas></div>
-        </section>
-        <!-- Rendre ma Constellation publique + URL -->
-        <section class="rounded-2xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <h2 class="font-serif text-lg font-bold text-[#D4AF37] mb-3">Profil public</h2>
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" id="dashboard-public-toggle" class="rounded border-[#D4AF37]/50 text-[#D4AF37] focus:ring-[#D4AF37]/30" />
-            <span class="text-[#F1F1E6] text-sm">Rendre ma Constellation publique</span>
-          </label>
-          <p id="dashboard-public-url" class="mt-2 text-[#D4AF37]/80 text-xs font-mono truncate hidden"></p>
-        </section>
-        <!-- Archives (Parchemins PDF) -->
-        <section class="rounded-2xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <h2 class="font-serif text-lg font-bold text-[#D4AF37] mb-3">Archives</h2>
-          <p class="text-[#F1F1E6]/70 text-sm mb-3">Téléchargez vos anciens parchemins (PDF).</p>
-          <div id="dashboard-archives-list" class="space-y-2 text-sm text-[#F1F1E6]/80">Aucun parchemin enregistré.</div>
-        </section>
-        <!-- Hyphes actives (derniers initiés) -->
-        <section class="rounded-2xl border border-[#D4AF37]/30 bg-white/5 p-6">
-          <h2 class="font-serif text-lg font-bold text-[#D4AF37] mb-3">Hyphes actives</h2>
-          <p class="text-[#F1F1E6]/70 text-sm mb-3">Derniers initiés connectés au réseau.</p>
-          <div id="dashboard-hyphes-list" class="flex flex-wrap gap-3">Chargement…</div>
-        </section>
-      </main>
-      <div class="fixed bottom-4 left-4 z-50">
-        <button id="dashboard-back" class="px-4 py-2 rounded-lg bg-black/60 hover:bg-black/80 text-white text-sm font-medium backdrop-blur">← Retour à l'accueil</button>
-      </div>
-    </div>
-
-    <!-- Profil public (URL /u/slug) -->
-    <div id="view-public" class="hidden min-h-screen bg-[#070B0A] text-[#F1F1E6] flex flex-col items-center justify-center p-6">
-      <div class="max-w-md w-full text-center">
-        <p id="public-loading" class="text-[#D4AF37]/80">Chargement de la constellation…</p>
-        <div id="public-content" class="hidden">
-          <h1 id="public-name" class="font-serif text-2xl font-bold text-[#D4AF37] mb-2"></h1>
-          <p id="public-maison" class="text-[#F1F1E6]/80 text-sm mb-2"></p>
-          <p id="public-totem" class="text-[#F1F1E6]/80 text-sm mb-6"></p>
-          <div class="w-full max-w-xs mx-auto mb-6"><canvas id="public-radar"></canvas></div>
-          <a href="#" id="public-back" class="text-[#D4AF37]/80 text-sm hover:text-[#D4AF37]">← Retour</a>
-        </div>
-        <p id="public-error" class="hidden text-red-400 text-sm">Cette constellation n'existe pas ou n'est pas visible.</p>
-      </div>
-    </div>
+ tout l’espace connecté est dans l’app React (Mycélium Hub). Ce bloc n’est plus affiché. -->
 
     <!-- Zone du test actif (questions + résultat) -->
     <div id="view-test" class="hidden min-h-screen relative">
@@ -248,10 +138,6 @@
           <button id="sg-redo" class="px-6 py-3 rounded-xl font-medium bg-white/10 hover:bg-white/20 text-[#F1F1E6] border border-white/20">Refaire le test</button>
           <button id="sg-back-to-selector" class="px-6 py-3 rounded-xl font-medium bg-white/10 hover:bg-white/20 text-[#F1F1E6] border border-white/20">Retour à l'accueil</button>
         </div>
-        <div id="sg-attach-cta" class="hidden mt-4 p-4 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10">
-          <p class="text-[#F1F1E6]/90 text-sm mb-2">Vos résultats sont enregistrés localement. Prêtez Serment pour les sauvegarder dans le réseau.</p>
-          <button id="sg-goto-temple-attach" type="button" class="px-4 py-2 rounded-lg bg-[#D4AF37] text-[#070B0A] font-medium text-sm hover:bg-[#D4AF37]/90">Prêter Serment (S'inscrire)</button>
-        </div>
       </div>
       <!-- Overlay chargement PDF -->
       <div id="sg-pdf-loading" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070B0A]/95">
@@ -282,10 +168,6 @@
     })();
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabaseClient.js"></script>
-  <script src="authService.js"></script>
-  <script src="dataService.js"></script>
   <script src="questions-49.js"></script>
   <script src="profiles-49.js"></script>
   <script src="reflections-49.js"></script>

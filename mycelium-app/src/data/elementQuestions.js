@@ -1,5 +1,5 @@
 /**
- * Questionnaire 4 — La Révélation de l'Élément Maître (Les 7 Clés)
+ * Questionnaire 4 — La Révélation de l'Élément Maître (L'Essence de la Sève)
  * 21 questions (3 par élément). Définit l'élément dominant et la couleur d'accent de l'interface.
  */
 export const ELEMENT_TEST = {
@@ -53,3 +53,55 @@ export const ELEMENT_TEST = {
     ],
   },
 };
+
+/** Ordre des questions : 3 par clé, 21 total */
+export function getFlatElementQuestions() {
+  const out = [];
+  for (const key of ELEMENT_TEST.keys) {
+    const qs = ELEMENT_TEST.questions[key] || [];
+    qs.forEach((q, i) => out.push({ key, questionIndex: i, question: q }));
+  }
+  return out;
+}
+
+export const ELEMENT_SCALE = [1, 2, 3, 4, 5];
+export const ELEMENT_SCALE_LABELS = { 1: 'Pas du tout', 2: 'Un peu', 3: 'Modérément', 4: 'Assez', 5: 'Totalement' };
+
+/** Scores par élément (7 valeurs), à partir du tableau de 21 réponses dans l'ordre getFlatElementQuestions */
+export function getElementScores(answers) {
+  const scores = {};
+  ELEMENT_TEST.keys.forEach((key, keyIdx) => {
+    let sum = 0, count = 0;
+    for (let i = 0; i < 3; i++) {
+      const v = answers[keyIdx * 3 + i];
+      if (v !== undefined && v !== null) { sum += Number(v); count++; }
+    }
+    scores[key] = count === 0 ? 0 : sum / count;
+  });
+  return scores;
+}
+
+/** Élément dominant (score max) → { id, element, key, color } */
+export function getDominantElement(scores) {
+  let maxKey = ELEMENT_TEST.keys[0];
+  let maxVal = scores[maxKey] ?? 0;
+  for (const key of ELEMENT_TEST.keys) {
+    const v = scores[key] ?? 0;
+    if (v > maxVal) { maxVal = v; maxKey = key; }
+  }
+  const label = ELEMENT_TEST.labels[maxKey];
+  return {
+    id: maxKey,
+    element: label?.element ?? maxKey,
+    key: label?.key ?? maxKey,
+    color: label?.color ?? '#D4AF37',
+  };
+}
+
+/** Titre de profil : "Initié de l'Air", "Initié de l'Éther", etc. */
+export function getInitieElementLabel(elementKey) {
+  const id = typeof elementKey === 'string' ? elementKey : elementKey?.id;
+  const label = ELEMENT_TEST.labels[id];
+  const element = label?.element ?? id ?? 'Sève';
+  return `Initié de l'${element.charAt(0).toUpperCase() + element.slice(1)}`;
+}

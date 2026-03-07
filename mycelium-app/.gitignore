@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Config Supabase (clés) — ne pas commiter
+public/supabase-config.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

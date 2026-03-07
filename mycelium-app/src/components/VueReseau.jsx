@@ -41,7 +41,7 @@ export default function VueReseau({ pulse, onBack }) {
         const { data } = await supabase
           .from('profiles')
           .select('id, initiate_name, totem, maison, slug')
-          .eq('public_constellation', true)
+          .or('is_public.eq.true,public_constellation.eq.true')
           .not('slug', 'is', null)
           .order('updated_at', { ascending: false })
           .limit(12);

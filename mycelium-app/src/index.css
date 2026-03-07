@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Mycélium — Bioluminescence Abyssale */
+/* Couleur d'accent (Élément Primordial) — surchargée par JS depuis le profil */
 :root {
   font-family: 'Inter', system-ui, sans-serif;
   line-height: 1.5;
@@ -10,7 +10,14 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  --accent: #D4AF37;
+  --accent-rgb: 212, 175, 55;
 }
+
+/* Utiliser l'accent (Élément Primordial) pour liens et états actifs */
+.accent-color { color: var(--accent); }
+.accent-bg { background-color: var(--accent); }
+.accent-border { border-color: var(--accent); }
 
 body {
   margin: 0;
@@ -90,4 +97,34 @@ body {
 
 .glow-gold-subtle {
   box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+}
+
+/* Particules Élément Primordial */
+@keyframes particle-float-up {
+  from { transform: translateY(100%) translateX(0) scale(0.5); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.4; }
+  to { transform: translateY(-20vh) translateX(15px) scale(1); opacity: 0; }
+}
+@keyframes particle-bubble {
+  from { transform: translateY(100%) scale(0.3); opacity: 0.5; }
+  to { transform: translateY(-30vh) scale(0.8); opacity: 0; }
+}
+@keyframes particle-spark {
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to { transform: translateY(-15vh) scale(0.2); opacity: 0; }
+}
+@keyframes particle-drift {
+  from { transform: translate(0, 0) rotate(0deg); opacity: 0.5; }
+  to { transform: translate(20px, -25vh) rotate(180deg); opacity: 0; }
+}
+@keyframes particle-shimmer {
+  from { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 0.8; }
+  to { opacity: 0.2; transform: scale(1.2); }
+}
+@keyframes particle-mist {
+  from { opacity: 0.1; transform: scale(1); }
+  50% { opacity: 0.25; }
+  to { opacity: 0.05; transform: scale(1.5); }
 }

@@ -6,6 +6,11 @@ import { supabase } from '../supabaseClient';
 
 const TABLE_FOREST_STATS = 'forest_stats';
 const TABLE_PROFILES = 'profiles';
+const TABLE_MONTHLY_RESONANCE = 'monthly_resonance';
+const TABLE_FOREST_AWAKENING = 'forest_awakening';
+const TABLE_INTELLIGENCE_MATRIX = 'intelligence_matrix';
+const XP_RESONANCE = 400;
+const XP_MATRICE = 300;
 
 export function getMaison(profileKey) {
   const MAISONS_MAP = {
@@ -50,7 +55,12 @@ export async function save49Result(result, userId) {
         const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve, initiation_step, test_mycelium_completed').eq('id', userId).single();
         const xp = (profile?.xp_seve ?? 0) + 500;
         const step = Math.max(profile?.initiation_step ?? 1, 2);
-        await updateProfile(userId, { test_mycelium_completed: true, initiation_step: step, xp_seve: xp });
+        await updateProfile(userId, {
+          test_mycelium_completed: true,
+          initiation_step: step,
+          xp_seve: xp,
+          constellation_data: { poleAverages: result.poleAverages },
+        });
       } catch (_) {}
     }
   }
@@ -90,6 +100,11 @@ export async function updateProfile(userId, data) {
   if (data.xp_seve !== undefined) row.xp_seve = data.xp_seve;
   if (data.constellation_data !== undefined) row.constellation_data = data.constellation_data;
   if (data.element_primordial !== undefined) row.element_primordial = data.element_primordial;
+  if (data.current_seal_id !== undefined) row.current_seal_id = data.current_seal_id;
+  if (data.current_nebula_css !== undefined) row.current_nebula_css = data.current_nebula_css;
+  if (data.resonance_month_year !== undefined) row.resonance_month_year = data.resonance_month_year;
+  if (data.capacite_maillage !== undefined) row.capacite_maillage = data.capacite_maillage;
+  if (data.cognitive_title !== undefined) row.cognitive_title = data.cognitive_title;
   try {
     await supabase.from(TABLE_PROFILES).upsert(row, { onConflict: 'id' });
   } catch (e) {
@@ -116,4 +131,143 @@ export async function saveTotem(totemName, userId) {
       } catch (_) {}
     }
   }
+}
+
+/**
+ * Résonance du Cycle : enregistre la session mensuelle, +400 XP, met à jour le profil (Sceau, Nébuleuse).
+ * Si 100+ résonances cette semaine, déclenche un Éveil de la Forêt (24h).
+ */
+export async function saveResonanceResult(userId, payload) {
+  if (!supabase || !userId || !payload?.month_year || !payload?.scores) return;
+  const { month_year, scores, resonance_summary, seal_id, nebula_css } = payload;
+  try {
+    await supabase.from(TABLE_MONTHLY_RESONANCE).insert({
+      user_id: userId,
+      month_year,
+      scores,
+      resonance_summary: resonance_summary ?? null,
+      seal_id: seal_id ?? null,
+      nebula_css: nebula_css ?? null,
+    });
+  } catch (e) {
+    console.warn('Mycélium saveResonance:', e?.message);
+    return;
+  }
+  try {
+    const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve').eq('id', userId).single();
+    const xp = (profile?.xp_seve ?? 0) + XP_RESONANCE;
+    await updateProfile(userId, {
+      xp_seve: xp,
+      current_seal_id: seal_id ?? null,
+      current_nebula_css: nebula_css ?? null,
+      resonance_month_year: month_year,
+    });
+  } catch (_) {}
+
+  try {
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+    const iso = startOfWeek.toISOString();
+    const { count } = await supabase
+      .from(TABLE_MONTHLY_RESONANCE)
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', iso);
+    if (count >= 100) {
+      const endsAt = new Date();
+      endsAt.setHours(endsAt.getHours() + 24);
+      const { data: existing } = await supabase
+        .from(TABLE_FOREST_AWAKENING)
+        .select('id')
+        .gt('ends_at', new Date().toISOString())
+        .limit(1)
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from(TABLE_FOREST_AWAKENING).insert({
+          ends_at: endsAt.toISOString(),
+          trigger_count: count,
+        });
+      }
+    }
+  } catch (_) {}
+}
+
+/** Retourne la résonance du mois en cours pour l'utilisateur (si déjà faite). */
+export async function getCurrentMonthResonance(userId) {
+  if (!supabase || !userId) return null;
+  const now = new Date();
+  const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const { data } = await supabase
+    .from(TABLE_MONTHLY_RESONANCE)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('month_year', monthYear)
+    .maybeSingle();
+  return data;
+}
+
+/** Liste des résonances passées (archives) pour l'utilisateur. */
+export async function getResonanceArchives(userId, limit = 12) {
+  if (!supabase || !userId) return [];
+  const { data } = await supabase
+    .from(TABLE_MONTHLY_RESONANCE)
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
+/** Éveil de la Forêt actif (24h de brillance) */
+export async function getActiveForestAwakening() {
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from(TABLE_FOREST_AWAKENING)
+    .select('*')
+    .gt('ends_at', new Date().toISOString())
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
+/**
+ * Matrice des Intelligences : enregistre le résultat, +300 XP, met à jour le profil (Capacité de Maillage, Titre Cognitif).
+ */
+export async function saveIntelligenceResult(userId, payload) {
+  if (!supabase || !userId || !payload?.scores) return;
+  const { scores, dominant_key, cognitive_title, capacite_maillage } = payload;
+  try {
+    await supabase.from(TABLE_INTELLIGENCE_MATRIX).insert({
+      user_id: userId,
+      scores,
+      dominant_key: dominant_key ?? null,
+      cognitive_title: cognitive_title ?? null,
+      capacite_maillage: capacite_maillage ?? null,
+    });
+  } catch (e) {
+    console.warn('Mycélium saveIntelligence:', e?.message);
+    return;
+  }
+  try {
+    const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve').eq('id', userId).single();
+    const xp = (profile?.xp_seve ?? 0) + XP_MATRICE;
+    await updateProfile(userId, {
+      xp_seve: xp,
+      capacite_maillage: capacite_maillage ?? null,
+      cognitive_title: cognitive_title ?? null,
+    });
+  } catch (_) {}
+}
+
+/** Dernier résultat Matrice d'Intelligence pour l'utilisateur */
+export async function getLastIntelligenceResult(userId) {
+  if (!supabase || !userId) return null;
+  const { data } = await supabase
+    .from(TABLE_INTELLIGENCE_MATRIX)
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
 }
