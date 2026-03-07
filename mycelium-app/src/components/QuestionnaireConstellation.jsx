@@ -13,7 +13,7 @@ import {
 
 const TOTAL = 30;
 
-export default function QuestionnaireConstellation({ onBack }) {
+export default function QuestionnaireConstellation({ onBack, userId, onComplete }) {
   const [step, setStep] = useState('intro');
   const [answers, setAnswers] = useState(Array(TOTAL).fill(undefined));
   const [result, setResult] = useState(null);
@@ -30,8 +30,10 @@ export default function QuestionnaireConstellation({ onBack }) {
     if (currentQ + 1 >= TOTAL) {
       const avgScores = getConstellationAverages(next);
       const summary = getConstellationSummary(avgScores);
-      setResult({ avgScores, summary });
+      const payload = { avgScores, summary, completedAt: new Date().toISOString() };
+      setResult(payload);
       setStep('result');
+      if (onComplete) onComplete(payload);
     } else {
       setStep(currentQ + 1);
     }

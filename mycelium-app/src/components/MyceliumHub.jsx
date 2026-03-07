@@ -10,7 +10,7 @@ import {
   Activity,
   Droplets,
 } from 'lucide-react';
-import { PawPrint, Moon, Flame, Brain, Users, Star } from 'lucide-react';
+import { PawPrint, Moon, Flame, Brain, Users, Star, Layers, ScrollText, Swords } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { save49Result, updateProfile, getMaison } from '../services/myceliumSave';
 import { getResonanceArchives, getActiveForestAwakening } from '../services/myceliumSave';
@@ -28,6 +28,9 @@ import VueElementMaitre from './VueElementMaitre';
 import VueMatriceIntelligence from './VueMatriceIntelligence';
 import VueForet from './VueForet';
 import VueConstellation from './VueConstellation';
+import VueDeck from './VueDeck';
+import VueJournal from './VueJournal';
+import VueCombat from './VueCombat';
 import ConstellationCard from './ConstellationCard';
 import AvatarExplicationsCard from './AvatarExplicationsCard';
 import { generateSeal } from '../utils/sealGenerator';
@@ -60,7 +63,7 @@ export default function MyceliumHub({ session, onLogout }) {
   const [resonanceArchives, setResonanceArchives] = useState([]);
   const [forestAwakening, setForestAwakening] = useState(null);
 
-  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
+  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, constellationResult, symbiosePoints, profile, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
 
   const addToast = (msg, variant = 'success') => {
     const id = Math.random().toString(36).slice(2);
@@ -150,6 +153,9 @@ export default function MyceliumHub({ session, onLogout }) {
     { id: 'element', icon: Flame, label: "L'Élément Maître" },
     { id: 'matrice', icon: Brain, label: "Matrice d'Intelligence" },
     { id: 'constellation', icon: Star, label: 'La Constellation' },
+    { id: 'deck', icon: Layers, label: 'Mon Deck' },
+    { id: 'journal', icon: ScrollText, label: 'Journal de Sève' },
+    { id: 'combat', icon: Swords, label: 'Le Duel' },
     { id: 'foret', icon: Users, label: 'La Forêt' },
   ];
 
@@ -160,15 +166,18 @@ export default function MyceliumHub({ session, onLogout }) {
     <div className={`min-h-screen bg-[#070B0A] text-[#F1F1E6] flex ${forestAwakening ? 'forest-awakening' : ''}`}>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-      {/* Sidebar verre — effet verre renforcé + animations organiques */}
+      {/* Sidebar verre — largeur augmentée pour titres complets */}
       <aside
-        className="w-20 flex-shrink-0 flex flex-col items-center py-6 border-r border-[var(--accent)]/20"
+        className="w-52 flex-shrink-0 flex flex-col py-6 border-r border-[var(--accent)]/20"
         style={{
           background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
           backdropFilter: 'blur(20px)',
         }}
       >
-        <Sparkles className="w-8 h-8 mb-8 accent-color" />
+        <div className="px-3 mb-6 flex items-center gap-2">
+          <Sparkles className="w-7 h-7 flex-shrink-0 accent-color" />
+          <span className="font-serif text-sm font-bold accent-color">Mycélium</span>
+        </div>
         {navItems.map((item, i) => (
           <motion.button
             key={item.id}
@@ -177,25 +186,38 @@ export default function MyceliumHub({ session, onLogout }) {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.03, duration: 0.2 }}
             onClick={() => setActiveView(item.id)}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition mb-2 w-full ${
+            className={`flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl transition mb-1 text-left ${
               activeView === item.id
                 ? 'accent-color bg-[var(--accent)]/15'
                 : 'text-[#F1F1E6]/70 hover:accent-color hover:bg-white/5'
             }`}
             title={item.label}
           >
-            <item.icon className="w-5 h-5" />
-            <span className="text-[10px] max-w-full truncate">{item.label}</span>
+            <item.icon className="w-5 h-5 flex-shrink-0" />
+            <span className="text-xs leading-tight">{item.label}</span>
           </motion.button>
         ))}
+        {/* XP & Grade dans la sidebar */}
+        <div className="mt-auto px-3 pt-4 border-t border-[var(--accent)]/10">
+          <p className="text-[#F1F1E6]/70 text-xs font-medium accent-color">{rank.label}</p>
+          <p className="text-lg font-bold accent-color tabular-nums">{xpSeve} XP</p>
+          <div className="h-1.5 rounded-full bg-[#0d1211] border border-[var(--accent)]/20 overflow-hidden mt-1">
+            <motion.div
+              className="h-full bg-[var(--accent)]/80 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: xpProgress.needed ? `${(xpProgress.current / xpProgress.needed) * 100}%` : '100%' }}
+              transition={{ duration: 0.6 }}
+            />
+          </div>
+        </div>
         <div className="mt-auto">
           <button
             onClick={handleLogout}
-            className="flex flex-col items-center gap-1 p-2 rounded-xl text-[#F1F1E6]/50 hover:text-red-400 hover:bg-red-500/10 transition"
+            className="flex items-center gap-3 px-3 py-2.5 mx-2 rounded-xl text-[#F1F1E6]/50 hover:text-red-400 hover:bg-red-500/10 transition"
             title="Se déconnecter"
           >
-            <LogOut className="w-5 h-5" />
-            <span className="text-[10px]">Sortir</span>
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            <span className="text-xs">Sortir</span>
           </button>
         </div>
       </aside>
@@ -278,7 +300,35 @@ export default function MyceliumHub({ session, onLogout }) {
           />
         )}
         {activeView === 'constellation' && (
-          <VueConstellation onBack={() => setActiveView('dashboard')} />
+          <VueConstellation
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            onConstellationComplete={async (payload) => {
+              const uid = session?.user?.id;
+              if (uid && payload) {
+                await updateProfile(uid, { constellation_result: payload });
+                refetchInitiation?.();
+              }
+            }}
+          />
+        )}
+        {activeView === 'deck' && (
+          <VueDeck onBack={() => setActiveView('dashboard')} profile={profile} />
+        )}
+        {activeView === 'journal' && (
+          <VueJournal
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            initiateName={profile?.initiate_name || session?.user?.user_metadata?.display_name || 'Initié'}
+            onQuestComplete={() => refetchInitiation?.()}
+          />
+        )}
+        {activeView === 'combat' && (
+          <VueCombat
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            profile={profile}
+          />
         )}
         {activeView === 'foret' && (
           <VueForet onBack={() => setActiveView('dashboard')} />
@@ -358,13 +408,16 @@ export default function MyceliumHub({ session, onLogout }) {
                     {getInitieElementLabel(elementPrimordial)}
                   </p>
                 )}
-                {/* Barre d'XP de Sève */}
-                <div className="mt-3 w-48">
-                  <div className="flex justify-between text-[#F1F1E6]/60 text-xs mb-1">
-                    <span>{xpSeve} XP</span>
-                    {xpProgress.nextLabel && <span>{xpProgress.needed - xpProgress.current} XP → {xpProgress.nextLabel}</span>}
+                <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
+                  {symbiosePoints} PS
+                </p>
+                {/* Barre d'XP de Sève — plus visible */}
+                <div className="mt-3 w-64">
+                  <div className="flex justify-between text-[#F1F1E6]/80 text-sm mb-1">
+                    <span className="font-mono font-semibold accent-color">{xpSeve} XP</span>
+                    {xpProgress.nextLabel && <span className="text-[#F1F1E6]/60 text-xs">{xpProgress.needed - xpProgress.current} XP → {xpProgress.nextLabel}</span>}
                   </div>
-                  <div className="h-2 rounded-full bg-[#0d1211] border border-[var(--accent)]/20 overflow-hidden">
+                  <div className="h-2.5 rounded-full bg-[#0d1211] border border-[var(--accent)]/20 overflow-hidden">
                     <motion.div
                       className="h-full bg-[var(--accent)]/80 rounded-full"
                       initial={{ width: 0 }}

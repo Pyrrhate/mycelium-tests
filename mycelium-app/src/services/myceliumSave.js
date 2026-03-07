@@ -9,8 +9,14 @@ const TABLE_PROFILES = 'profiles';
 const TABLE_MONTHLY_RESONANCE = 'monthly_resonance';
 const TABLE_FOREST_AWAKENING = 'forest_awakening';
 const TABLE_INTELLIGENCE_MATRIX = 'intelligence_matrix';
+const TABLE_MATCH_HISTORY = 'match_history';
+const TABLE_USER_JOURNAL = 'user_journal';
 const XP_RESONANCE = 400;
 const XP_MATRICE = 300;
+const XP_MATCH_WIN = 20;
+const PS_MATCH_WIN = 50;
+const PS_QUEST_COMPLETE = 50;
+const XP_QUEST_COMPLETE = 10;
 
 export function getMaison(profileKey) {
   const MAISONS_MAP = {
@@ -104,7 +110,9 @@ export async function updateProfile(userId, data) {
   if (data.initiation_step !== undefined) row.initiation_step = data.initiation_step;
   if (data.xp_seve !== undefined) row.xp_seve = data.xp_seve;
   if (data.constellation_data !== undefined) row.constellation_data = data.constellation_data;
+  if (data.constellation_result !== undefined) row.constellation_result = data.constellation_result;
   if (data.element_primordial !== undefined) row.element_primordial = data.element_primordial;
+  if (data.symbiose_points !== undefined) row.symbiose_points = data.symbiose_points;
   if (data.current_seal_id !== undefined) row.current_seal_id = data.current_seal_id;
   if (data.current_nebula_css !== undefined) row.current_nebula_css = data.current_nebula_css;
   if (data.resonance_month_year !== undefined) row.resonance_month_year = data.resonance_month_year;
@@ -275,4 +283,101 @@ export async function getLastIntelligenceResult(userId) {
     .limit(1)
     .maybeSingle();
   return data;
+}
+
+/**
+ * Journal de Sève : crée une entrée et retourne l'entrée avec id.
+ */
+export async function saveJournalEntry(userId, { entry_text, detected_element, assigned_quest_id }) {
+  if (!supabase || !userId || !entry_text?.trim()) return null;
+  const { data, error } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .insert({
+      user_id: userId,
+      entry_text: entry_text.trim(),
+      detected_element: detected_element ?? null,
+      assigned_quest_id: assigned_quest_id ?? null,
+    })
+    .select('id, created_at, assigned_quest_id, detected_element')
+    .single();
+  if (error) {
+    console.warn('Mycélium saveJournalEntry:', error.message);
+    return null;
+  }
+  return data;
+}
+
+/**
+ * Liste des entrées du journal (archives), plus récentes en premier.
+ */
+export async function getJournalEntries(userId, limit = 50) {
+  if (!supabase || !userId) return [];
+  const { data } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .select('id, entry_text, detected_element, assigned_quest_id, is_completed, completed_at, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
+/**
+ * Marque une quête du journal comme accomplie : +50 PS, +10 XP, met à jour le profil et l'entrée.
+ */
+export async function completeJournalQuest(userId, journalEntryId) {
+  if (!supabase || !userId || !journalEntryId) return false;
+  const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve, symbiose_points').eq('id', userId).single();
+  const xp = (profile?.xp_seve ?? 0) + XP_QUEST_COMPLETE;
+  const ps = Math.max(0, (profile?.symbiose_points ?? 0) + PS_QUEST_COMPLETE);
+  await updateProfile(userId, { xp_seve: xp, symbiose_points: ps });
+  await supabase
+    .from(TABLE_USER_JOURNAL)
+    .update({ is_completed: true, completed_at: new Date().toISOString() })
+    .eq('id', journalEntryId)
+    .eq('user_id', userId);
+  return true;
+}
+
+/**
+ * Enregistre l'issue d'un duel et ajoute PS/XP en cas de victoire.
+ */
+export async function saveMatchResult(userId, payload) {
+  if (!supabase || !userId) return null;
+  const {
+    opponent_type = 'ai',
+    opponent_id,
+    result,
+    player_hp_final,
+    opponent_hp_final,
+    turns_played = 0,
+  } = payload;
+
+  const rewards_ps = result === 'win' || result === 'fusion' ? PS_MATCH_WIN : 0;
+  const rewards_xp = result === 'win' || result === 'fusion' ? XP_MATCH_WIN : 0;
+
+  const { data: row } = await supabase
+    .from(TABLE_MATCH_HISTORY)
+    .insert({
+      user_id: userId,
+      opponent_type,
+      opponent_id: opponent_id ?? null,
+      result,
+      player_hp_final: player_hp_final ?? null,
+      opponent_hp_final: opponent_hp_final ?? null,
+      turns_played,
+      rewards_ps,
+      rewards_xp,
+    })
+    .select('id, rewards_ps, rewards_xp')
+    .single();
+
+  if (row && (rewards_ps > 0 || rewards_xp > 0)) {
+    const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve, symbiose_points').eq('id', userId).single();
+    await updateProfile(userId, {
+      xp_seve: (profile?.xp_seve ?? 0) + rewards_xp,
+      symbiose_points: Math.max(0, (profile?.symbiose_points ?? 0) + rewards_ps),
+    });
+  }
+
+  return row;
 }

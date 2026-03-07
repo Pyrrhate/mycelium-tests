@@ -4,10 +4,14 @@ import QuestionnaireConstellation from './QuestionnaireConstellation';
 /**
  * La Constellation — L'Horoscope des Courants de Sève (30 questions, état vibratoire).
  */
-export default function VueConstellation({ onBack }) {
+export default function VueConstellation({ onBack, userId, onConstellationComplete }) {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto space-y-6">
-      <QuestionnaireConstellation onBack={onBack} />
+      <QuestionnaireConstellation
+        onBack={onBack}
+        userId={userId}
+        onComplete={onConstellationComplete}
+      />
     </motion.div>
   );
 }
