@@ -3,7 +3,7 @@ const TESTS = {
     id: 'musk',
     name: 'Techno-King',
     questions: [
-      { sin: 'L\'Envie', text: 'Un concurrent lance un produit révolutionnaire. Votre réaction ?', options: ['Je lui envoie une lettre de félicitations.', 'Je m\'inspire de son talent pour progresser.', 'Je tweete qu\'il est un pédophile, je rachète sa boîte et je la ferme.'] },
+      { sin: 'L\'Envie', text: 'Un concurrent lance un produit révolutionnaire. Votre réaction ?', options: ['Je lui envoie une lettre de félicitations.', 'Je m\'inspire de son talent pour progresser.', 'Je tweete qu\'il est un loser, je rachète sa boîte et je la ferme.'] },
       { sin: 'La Gourmandise', text: 'Quel est votre carburant quotidien ?', options: ['Une alimentation bio et locale.', 'Un repas équilibré en famille.', 'Du Diet Coke, des mélanges de médicaments expérimentaux et des mèmes volés.'] },
       { sin: 'La Paresse', text: 'Votre dimanche idéal ?', options: ['Une longue grasse matinée et un livre.', 'Une randonnée en forêt.', 'Dormir 15 min sous mon bureau entre deux lancements de fusées. Hardcore.'] },
       { sin: 'L\'Avarice', text: 'Que faire de 44 milliards de dollars ?', options: ['Éradiquer la faim dans le monde.', 'Investir dans l\'éducation mondiale.', 'Acheter un réseau social pour pouvoir poster des émojis \'caca\' à mes ennemis.'] },

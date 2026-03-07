@@ -51,6 +51,15 @@
       osc.stop(ctx.currentTime + duration);
     } catch (_) {}
   }
+  function playSgKeySound() {
+    playTone({
+      freq: 280 + Math.random() * 80,
+      duration: 0.06,
+      type: 'sine',
+      volume: 0.04,
+      decay: 0.4
+    });
+  }
   // Deux sons par question (hover + click), paramètres différents pour chaque question (qIndex 0-6)
   const SOUND_PRESETS = [
     { hover: { freq: 330, duration: 0.06, type: 'sine', volume: 0.12 }, click: { freq: 523, duration: 0.1, type: 'sine', volume: 0.18 }, wrong: { freq: 120, duration: 0.15, type: 'square', volume: 0.12 } },
@@ -470,9 +479,10 @@
     stopChaos();
 
     $('#question-label').textContent = q.sin;
-    $('#question-label').className = 'text-sm uppercase tracking-wider mb-4 ' + (level === 1 && (state.currentTest === 'musk' || state.currentTest === 'trump') ? 'text-gray-600' : 'text-white/70');
+    const isLightTheme = (state.currentTest === 'musk' && level === 1) || (state.currentTest === 'trump' && level === 1) || (state.currentTest === 'bdw' && level === 2);
+    $('#question-label').className = 'text-sm uppercase tracking-wider mb-4 ' + (isLightTheme ? 'text-gray-700' : 'text-white/90');
     $('#question-text').textContent = q.text;
-    $('#question-text').className = 'text-2xl md:text-4xl font-bold text-center mb-12 max-w-3xl leading-tight ' + (state.currentTest === 'trump' && qIndex === 7 ? 'text-5xl' : '') + (level === 1 && (state.currentTest === 'musk' || state.currentTest === 'trump') ? ' text-gray-900' : ' text-white');
+    $('#question-text').className = 'text-2xl md:text-4xl font-bold text-center mb-12 max-w-3xl leading-tight ' + (state.currentTest === 'trump' && qIndex === 7 ? 'text-5xl' : '') + (isLightTheme ? ' text-gray-900' : ' text-white') + (isLightTheme ? '' : ' drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]');
     const progressBar = $('#progress-bar');
     const progressContainer = $('#progress-bar-container');
     if (progressBar) {
@@ -768,10 +778,17 @@
     $('#btn-back-to-selector').onclick = () => {
       stopChaos();
       stopAmbient();
-      showView('selector');
-      updateTabTitle(null, 0);
+      const grain = document.querySelector('.grain-overlay');
+      const scan = document.querySelector('.scanlines');
+      if (grain) grain.style.display = 'none';
+      if (scan) scan.style.display = 'none';
       document.body.className = 'min-h-screen overflow-x-hidden antialiased';
       document.body.classList.remove('cursor-maga', 'cursor-laurel', 'cursor-glaive');
+      ['theme-musk-1','theme-musk-2','theme-musk-3','theme-musk-4','theme-bdw-1','theme-bdw-2','theme-bdw-3','theme-bdw-4','theme-trump-1','theme-trump-2','theme-trump-3','theme-trump-4','theme-putin-1','theme-putin-2','theme-putin-3','theme-putin-4'].forEach(c => {
+        document.body.classList.remove(c);
+      });
+      showView('selector');
+      updateTabTitle(null, 0);
     };
   }
 
@@ -830,6 +847,7 @@
         btn.textContent = v + (SG_LABELS[v] ? ' ' + SG_LABELS[v] : '');
         btn.onclick = () => {
           sgAnswers[globalIndex] = v;
+          playSgKeySound();
           setSelfGrowthPage();
           updateSgProgress();
         };
@@ -839,7 +857,10 @@
       container.appendChild(div);
     }
     updateSgProgress();
-    $('#sg-next').textContent = sgPoleIndex === 6 ? 'Voir mon résultat' : 'Clé suivante';
+    const nextBtn = $('#sg-next');
+    nextBtn.disabled = false;
+    nextBtn.textContent = sgPoleIndex === 6 ? 'Voir mon résultat' : 'Clé suivante';
+    nextBtn.setAttribute('aria-label', '');
   }
 
   function getPoleAverages() {
@@ -853,6 +874,16 @@
       avgs.push(count === 0 ? 0 : sum / count);
     }
     return avgs;
+  }
+
+  function getMyceliumIntelligence(poleAverages) {
+    const equilibreCount = poleAverages.filter((m) => m >= -1.2 && m <= 1.2).length;
+    const score = Math.round((equilibreCount / 7) * 100);
+    let label = 'En développement';
+    if (score >= 86) label = 'Très haute';
+    else if (score >= 61) label = 'Haute';
+    else if (score >= 31) label = 'Moyenne';
+    return { score, label };
   }
 
   function showSelfGrowthResult() {
@@ -902,9 +933,57 @@
     });
 
     const hybrid = window.calculateHybridProfile(poleAverages);
+    const profileHybrideEl = $('#sg-profile-hybride');
+    if (profileHybrideEl) {
+      profileHybrideEl.className = 'mb-8 text-center p-6 rounded-2xl border-2 border-[#D4AF37]/50 bg-[#0d1211] shadow-lg';
+      const symbol = (window.MYCELIUM_PROFILES && window.MYCELIUM_PROFILES.profileSymbols && window.MYCELIUM_PROFILES.profileSymbols[hybrid.profileKey]) || '◉';
+      let symbolEl = profileHybrideEl.querySelector('.sg-profile-symbol');
+      if (!symbolEl) {
+        symbolEl = document.createElement('div');
+        symbolEl.className = 'sg-profile-symbol';
+        profileHybrideEl.insertBefore(symbolEl, profileHybrideEl.firstChild);
+      }
+      symbolEl.textContent = symbol;
+      symbolEl.setAttribute('aria-hidden', 'true');
+      const hash = (hybrid.profileKey || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+      symbolEl.classList.remove('sg-symbol-slow', 'sg-symbol-fast');
+      if (hash % 3 === 0) symbolEl.classList.add('sg-symbol-slow');
+      else if (hash % 3 === 1) symbolEl.classList.add('sg-symbol-fast');
+    }
     $('#sg-profile-name').textContent = hybrid.name;
+    $('#sg-profile-name').className = 'font-serif text-2xl md:text-3xl font-bold text-[#F1F1E6] block mt-1';
     $('#sg-profile-desc').textContent = hybrid.description;
     $('#sg-user-display').textContent = sgUserName ? sgUserName : '';
+
+    let constellationEl = $('#sg-constellation');
+    if (!constellationEl) {
+      constellationEl = document.createElement('div');
+      constellationEl.id = 'sg-constellation';
+      constellationEl.className = 'mb-6 p-4 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#F1F1E6]/90 text-sm italic max-w-xl mx-auto';
+      const exportArea = $('#sg-export-area');
+      if (exportArea && exportArea.querySelector('#sg-profile-hybride')) {
+        exportArea.insertBefore(constellationEl, exportArea.querySelector('#sg-profile-hybride').nextSibling);
+      } else {
+        exportArea.appendChild(constellationEl);
+      }
+    }
+    const constellationText = (window.MYCELIUM_PROFILES && window.MYCELIUM_PROFILES.constellationTexts && window.MYCELIUM_PROFILES.constellationTexts[hybrid.profileKey]) || 'Votre constellation reflète l\'équilibre de vos clés dominantes.';
+    constellationEl.innerHTML = '<span class="text-[#D4AF37] font-mono text-xs uppercase tracking-wider block mb-2">Constellation</span>' + constellationText;
+
+    const intel = getMyceliumIntelligence(poleAverages);
+    let intelEl = $('#sg-intelligence');
+    if (!intelEl) {
+      intelEl = document.createElement('div');
+      intelEl.id = 'sg-intelligence';
+      intelEl.className = 'mb-6 p-4 rounded-xl bg-white/5 border border-[#D4AF37]/20 max-w-xl mx-auto';
+      const exportArea = $('#sg-export-area');
+      if (exportArea && $('#sg-constellation')) {
+        exportArea.insertBefore(intelEl, $('#sg-constellation').nextSibling);
+      } else {
+        exportArea.appendChild(intelEl);
+      }
+    }
+    intelEl.innerHTML = '<span class="text-[#D4AF37] font-mono text-xs uppercase tracking-wider block mb-1">Intelligence selon Mycélium</span><span class="text-2xl font-bold text-[#D4AF37]">' + intel.score + '%</span> <span class="text-[#F1F1E6]">— ' + intel.label + '</span>';
 
     const report = window.generateReport(poleAverages, sgUserName);
     $('#sg-global').textContent = report.global;
@@ -960,89 +1039,255 @@
     const hideLoading = () => { if (loadingEl) loadingEl.classList.add('hidden'); };
 
     showLoading();
+    const poleAverages = getPoleAverages();
+    const keys = window.MYCELIUM_49 && window.MYCELIUM_49.keys ? window.MYCELIUM_49.keys : (window.MYCELIUM_49 && window.MYCELIUM_49.poles ? window.MYCELIUM_49.poles : []);
+
     setTimeout(function doExport() {
       try {
-        if (typeof html2canvas !== 'undefined' && (window.jspdf && window.jspdf.jsPDF || window.jsPDF)) {
-          const JsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
-          const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-          const pageW = doc.internal.pageSize.getWidth();
-          const pageH = doc.internal.pageSize.getHeight();
-          doc.setFillColor(7, 11, 10);
-          doc.rect(0, 0, pageW, pageH, 'F');
-          doc.setTextColor(212, 175, 55);
-          doc.setFontSize(18);
+        if (typeof Chart === 'undefined' || !(window.jspdf && window.jspdf.jsPDF || window.jsPDF)) {
+          hideLoading();
+          alert('Export PDF indisponible (Chart.js ou jsPDF manquant).');
+          return;
+        }
+        const JsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+        const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 18;
+        const lineHeight = 5;
+        const black = [0, 0, 0];
+        const darkGray = [60, 60, 60];
+
+        function nextPageIfNeeded(y, needSpace) {
+          if (y + (needSpace || 15) > pageH - margin) {
+            doc.addPage();
+            return margin;
+          }
+          return y;
+        }
+
+        // Fond blanc (défaut), titre en noir
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, pageW, pageH, 'F');
+        doc.setTextColor(...black);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Carte de Conscience Mycélium', pageW / 2, margin, { align: 'center' });
+        let y = margin + 8;
+
+        const userName = ($('#sg-user-display') && $('#sg-user-display').textContent) || '';
+        if (userName) {
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'normal');
+          doc.text(userName, pageW / 2, y, { align: 'center' });
+          y += 8;
+        }
+
+        // Graphique radar noir sur fond blanc (canvas temporaire)
+        const radarW = 400;
+        const radarH = 280;
+        const radarCanvas = document.createElement('canvas');
+        radarCanvas.width = radarW;
+        radarCanvas.height = radarH;
+        const values = poleAverages.map((m) => m + 2);
+        const radarChartPdf = new Chart(radarCanvas, {
+          type: 'radar',
+          data: {
+            labels: keys.map((k) => k.name),
+            datasets: [{
+              label: 'Sève',
+              data: values,
+              borderColor: '#1a1a1a',
+              backgroundColor: 'rgba(0, 0, 0, 0.08)',
+              borderWidth: 2,
+              pointBackgroundColor: '#1a1a1a',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 1,
+              pointRadius: 3
+            }]
+          },
+          options: {
+            responsive: false,
+            maintainAspectRatio: false,
+            layout: { padding: 8 },
+            scales: {
+              r: {
+                min: 0,
+                max: 4,
+                ticks: { display: false },
+                pointLabels: { color: '#1a1a1a', font: { size: 10 } },
+                grid: { color: 'rgba(0,0,0,0.25)' },
+                angleLines: { color: 'rgba(0,0,0,0.2)' }
+              }
+            },
+            plugins: { legend: { display: false } }
+          }
+        });
+
+        // Fond blanc sous le graphique (canvas final)
+        const radarFinal = document.createElement('canvas');
+        radarFinal.width = radarW;
+        radarFinal.height = radarH;
+        const rCtx = radarFinal.getContext('2d');
+        rCtx.fillStyle = '#ffffff';
+        rCtx.fillRect(0, 0, radarW, radarH);
+        rCtx.drawImage(radarCanvas, 0, 0);
+        radarChartPdf.destroy();
+
+        const imgW = pageW - 2 * margin;
+        const imgH = Math.min(55, imgW * (radarH / radarW));
+        const imgData = radarFinal.toDataURL('image/png');
+        doc.addImage(imgData, 'PNG', margin, y, imgW, imgH);
+        y += imgH + 8;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(...black);
+        const profileName = ($('#sg-profile-name') && $('#sg-profile-name').textContent) || '';
+        const profileDesc = ($('#sg-profile-desc') && $('#sg-profile-desc').textContent) || '';
+        if (profileName) {
+          doc.text('Votre Profil Dominant : ' + profileName, margin, y);
+          y += lineHeight + 2;
+        }
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...darkGray);
+        if (profileDesc) {
+          const lines = doc.splitTextToSize(profileDesc, pageW - 2 * margin);
+          doc.text(lines, margin, y);
+          y += lines.length * lineHeight + 6;
+        }
+
+        doc.setTextColor(...black);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        const constellationRaw = ($('#sg-constellation') && $('#sg-constellation').textContent) || '';
+        const constellationText = constellationRaw.replace(/^Constellation\s*/i, '').trim();
+        if (constellationText) {
+          y = nextPageIfNeeded(y, 25);
+          doc.text('Constellation', margin, y);
+          y += lineHeight;
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(9);
+          doc.setTextColor(...darkGray);
+          const constLines = doc.splitTextToSize(constellationText, pageW - 2 * margin);
+          doc.text(constLines, margin, y);
+          y += constLines.length * lineHeight + 4;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...black);
+        }
+
+        const intelEl = $('#sg-intelligence');
+        const intelText = intelEl ? intelEl.textContent : '';
+        if (intelText) {
+          y = nextPageIfNeeded(y, 10);
           doc.setFont('helvetica', 'bold');
-          doc.text('Carte de Conscience Mycélium', pageW / 2, 18, { align: 'center' });
-          const userName = ($('#sg-user-display') && $('#sg-user-display').textContent) || '';
-          if (userName) {
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'normal');
-            doc.text(userName, pageW / 2, 25, { align: 'center' });
-          }
-          const canvas = document.getElementById('sg-radar');
-          if (canvas) {
-            const imgData = canvas.toDataURL('image/png');
-            doc.addImage(imgData, 'PNG', 25, 32, pageW - 50, 70);
-          }
-          let y = 108;
-          doc.setFontSize(14);
-          doc.setTextColor(212, 175, 55);
-          const profileName = ($('#sg-profile-name') && $('#sg-profile-name').textContent) || '';
-          if (profileName) {
-            doc.text('Votre Profil Dominant : ' + profileName, 20, y);
-            y += 10;
-          }
+          doc.setFontSize(9);
+          doc.text(intelText, margin, y);
+          y += lineHeight + 4;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        const globalText = ($('#sg-global') && $('#sg-global').textContent) || '';
+        if (globalText) {
+          y = nextPageIfNeeded(y, 20);
+          doc.text('Synthèse globale', margin, y);
+          y += lineHeight;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(...darkGray);
+          const lines = doc.splitTextToSize(globalText, pageW - 2 * margin);
+          doc.text(lines, margin, y);
+          y += lines.length * lineHeight + 6;
+          doc.setTextColor(...black);
+        }
+
+        const keyAnalyses = document.getElementById('sg-key-analyses');
+        if (keyAnalyses && keyAnalyses.children.length) {
+          y = nextPageIfNeeded(y, 15);
+          doc.setFont('helvetica', 'bold');
           doc.setFontSize(10);
-          doc.setTextColor(241, 241, 230);
-          const globalText = ($('#sg-global') && $('#sg-global').textContent) || '';
-          if (globalText) {
-            const lines = doc.splitTextToSize(globalText, pageW - 40);
-            doc.text(lines, 20, y);
-            y += lines.length * 5 + 5;
+          doc.text('Analyse par clé', margin, y);
+          y += lineHeight + 2;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(...darkGray);
+          for (let i = 0; i < keyAnalyses.children.length; i++) {
+            y = nextPageIfNeeded(y, 15);
+            const text = keyAnalyses.children[i].textContent || '';
+            const keyLines = doc.splitTextToSize(text, pageW - 2 * margin);
+            doc.text(keyLines, margin, y);
+            y += keyLines.length * lineHeight + 2;
           }
-          const keyAnalyses = document.getElementById('sg-key-analyses');
-          if (keyAnalyses && keyAnalyses.children.length) {
-            doc.setFontSize(10);
-            for (let i = 0; i < keyAnalyses.children.length && y < pageH - 25; i++) {
-              const text = keyAnalyses.children[i].textContent || '';
-              const keyLines = doc.splitTextToSize(text, pageW - 40);
-              doc.text(keyLines, 20, y);
-              y += keyLines.length * 5 + 3;
-            }
-            y += 5;
+          y += 4;
+          doc.setTextColor(...black);
+        }
+
+        const refDiv = document.getElementById('sg-reflections');
+        if (refDiv && refDiv.children.length) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.text('Réflexions', margin, nextPageIfNeeded(y, 15));
+          y += lineHeight + 2;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(...darkGray);
+          for (let i = 0; i < refDiv.children.length; i++) {
+            y = nextPageIfNeeded(y, 15);
+            const text = refDiv.children[i].textContent || '';
+            const refLines = doc.splitTextToSize(text, pageW - 2 * margin);
+            doc.text(refLines, margin, y);
+            y += refLines.length * lineHeight + 2;
           }
-          const conseil = ($('#sg-conseil-foret') && $('#sg-conseil-foret').textContent) || '';
-          if (conseil && y < pageH - 20) {
-            doc.setTextColor(212, 175, 55);
-            doc.setFont('helvetica', 'italic');
-            const conseilLines = doc.splitTextToSize(conseil, pageW - 40);
-            doc.text(conseilLines, 20, y);
-            y += conseilLines.length * 5 + 8;
-          }
+          y += 4;
+          doc.setTextColor(...black);
+        }
+
+        const conseil = ($('#sg-conseil-foret') && $('#sg-conseil-foret').textContent) || '';
+        if (conseil) {
+          y = nextPageIfNeeded(y, 20);
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(9);
+          doc.setTextColor(...darkGray);
+          const conseilLines = doc.splitTextToSize(conseil, pageW - 2 * margin);
+          doc.text(conseilLines, margin, y);
+          y += conseilLines.length * lineHeight + 6;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...black);
+        }
+
+        const creaturesDiv = document.getElementById('sg-creatures');
+        if (creaturesDiv && creaturesDiv.children.length) {
+          y = nextPageIfNeeded(y, 25);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.text('Les 7 clés', margin, y);
+          y += lineHeight + 2;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
-          doc.setTextColor(180, 180, 170);
-          doc.text('Le réseau ne juge pas, il s\'adapte.', pageW / 2, pageH - 10, { align: 'center' });
-          doc.save('carte-conscience-mycelium.pdf');
-        } else {
-          const el = document.getElementById('sg-export-area');
-          if (el && typeof html2pdf !== 'undefined') {
-            html2pdf().set({
-              margin: 10,
-              filename: 'carte-conscience-mycelium.pdf',
-              image: { type: 'jpeg', quality: 0.95 },
-              html2canvas: { scale: 2 },
-              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            }).from(el).save();
-          } else {
-            alert('Export PDF indisponible.');
+          doc.setTextColor(...darkGray);
+          for (let i = 0; i < creaturesDiv.children.length; i++) {
+            y = nextPageIfNeeded(y, 12);
+            const text = creaturesDiv.children[i].textContent || '';
+            const creatureLines = doc.splitTextToSize(text, pageW - 2 * margin);
+            doc.text(creatureLines, margin, y);
+            y += creatureLines.length * lineHeight + 1;
           }
+          doc.setTextColor(...black);
         }
+
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text('Le réseau ne juge pas, il s\'adapte.', pageW / 2, pageH - 10, { align: 'center' });
+
+        doc.save('carte-conscience-mycelium.pdf');
       } catch (e) {
+        console.error(e);
         alert('Erreur lors de la génération du PDF.');
       }
       hideLoading();
-    }, 400);
+    }, 450);
   }
 
   function startSelfGrowth() {

@@ -30,7 +30,7 @@ window.MYCELIUM_49 = {
       questions: [
         "J'ai peur de manquer de ressources (argent, temps, énergie).",
         "Je retiens des informations utiles pour garder un ascendant.",
-        "Offrir un cadeau ou du temps sans calcul me est difficile.",
+        "Offrir un cadeau ou du temps sans calcul m'est difficile.",
         "J'accumule des objets « au cas où » qui s'entassent.",
         "Partager du temps « non productif » me donne une sensation de perte.",
         "Je limite mes dépenses par crainte du manque.",
@@ -50,7 +50,7 @@ window.MYCELIUM_49 = {
         "Je désire posséder ce qui rend l'autre heureux.",
         "Je déprécie mentalement les succès d'autrui pour me rassurer.",
         "J'imite inconsciemment les styles ou langages des autres.",
-        "Célébrer sincèrement la bonne nouvelle d'un rival me est difficile."
+        "Célébrer sincèrement la bonne nouvelle d'un rival m'est difficile."
       ]
     },
     {
@@ -65,7 +65,7 @@ window.MYCELIUM_49 = {
         "Je rumine des injustices passées pendant des heures.",
         "J'utilise le sarcasme comme arme de défense.",
         "En conflit, je sens une chaleur physique difficile à contrôler.",
-        "Pardonner une offense réelle ou perçue me est ardu.",
+        "Pardonner une offense réelle ou perçue m'est ardu.",
         "J'ai des impulsions de briser des objets ou de hausser le ton."
       ]
     },
@@ -77,7 +77,7 @@ window.MYCELIUM_49 = {
       description: 'La fructification crée et désire. Elle exprime la sève en fruits et en beauté.',
       questions: [
         "Je recherche constamment des stimuli sensoriels intenses.",
-        "Rester fidèle à une tâche ou une personne par ennui me est difficile.",
+        "Rester fidèle à une tâche ou une personne par ennui m'est difficile.",
         "Le plaisir immédiat prime souvent sur mes projets de fond.",
         "J'utilise la séduction pour obtenir ce que je veux.",
         "Dès que l'excitation retombe, je ressens un vide.",
@@ -113,7 +113,7 @@ window.MYCELIUM_49 = {
         "Je préfère le confort passif à l'aventure.",
         "Je me sens en fatigue chronique malgré un repos suffisant.",
         "J'abandonne vite face à la première difficulté technique.",
-        "Je dépends de habitudes rassurantes mais stériles.",
+        "Je dépends des habitudes rassurantes mais stériles.",
         "Je fuis dans le sommeil ou les mondes imaginaires."
       ]
     }

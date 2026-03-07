@@ -326,3 +326,30 @@ body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
   animation: racine-line 0.8s ease-out 0.3s forwards;
   height: 0;
 }
+
+/* === Profil Mycélium : symbole doré avec rotation 3D et traînée === */
+.sg-profile-symbol {
+  display: inline-block;
+  font-size: 3rem;
+  line-height: 1;
+  color: #D4AF37;
+  text-shadow:
+    0 0 12px rgba(212, 175, 55, 0.9),
+    0 0 24px rgba(212, 175, 55, 0.6),
+    0 0 40px rgba(212, 175, 55, 0.35),
+    2px 2px 4px rgba(0, 0, 0, 0.5);
+  transform-style: preserve-3d;
+  perspective: 300px;
+  animation: sg-symbol-rotate 12s linear infinite;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.5));
+}
+@keyframes sg-symbol-rotate {
+  0% { transform: rotateY(0deg) rotateZ(0deg); }
+  25% { transform: rotateY(90deg) rotateZ(5deg); }
+  50% { transform: rotateY(180deg) rotateZ(-3deg); }
+  75% { transform: rotateY(270deg) rotateZ(4deg); }
+  100% { transform: rotateY(360deg) rotateZ(0deg); }
+}
+.sg-profile-symbol.sg-symbol-slow { animation-duration: 18s; }
+.sg-profile-symbol.sg-symbol-fast { animation-duration: 8s; }

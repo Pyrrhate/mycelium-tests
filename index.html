@@ -12,13 +12,13 @@
   <div id="app" class="min-h-screen relative">
     <!-- Accueil : façade institutionnelle (ne montre pas les leaders) -->
     <div id="view-selector" class="min-h-screen flex flex-col items-center justify-center p-8 bg-[#f6f4ef]">
-      <div class="w-full max-w-4xl">
-        <div class="mb-10">
-          <h1 class="text-4xl md:text-5xl font-serif font-bold text-slate-800">Mycélium</h1>
-          <p class="text-slate-600 mt-2">Test de Compatibilité Universelle</p>
-          <p class="text-slate-500 text-sm mt-3 max-w-2xl">Veuillez sélectionner un protocole. Les réponses seront utilisées pour optimiser votre profil de compatibilité.</p>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Section 1 : Bienvenue + encart + 4 questionnaires -->
+      <section class="w-full max-w-4xl bg-[#f6f4ef] rounded-2xl p-8 md:p-10 shadow-inner">
+        <h1 class="text-4xl md:text-5xl font-serif font-bold text-slate-800">Bienvenue au projet Mycélium</h1>
+        <p class="text-slate-600 mt-2">Test de Compatibilité Universelle</p>
+        <p class="text-slate-500 text-sm mt-3 max-w-2xl">Veuillez sélectionner un protocole. Les réponses seront utilisées pour optimiser votre profil de compatibilité.</p>
+        <p class="text-slate-500 text-sm mt-1 italic">Bonne visite.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
           <button data-test="trump" class="test-card group p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-all border border-slate-200 hover:border-slate-300 text-left">
             <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 1 : Analyse de la structure de l'ego</span>
             <p class="mt-2 text-slate-600 text-sm">Temps estimé : 5 minutes. Répondez avec honnêteté pour des résultats optimaux.</p>
@@ -35,13 +35,19 @@
             <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 4 : Protocole de stabilité systémique</span>
             <p class="mt-2 text-slate-600 text-sm">Temps estimé : 5 minutes. Répondez avec honnêteté pour des résultats optimaux.</p>
           </button>
-          <button data-test="self-growth" class="test-card group p-6 rounded-xl bg-white shadow-sm hover:shadow-md transition-all border border-slate-200 hover:border-slate-300 text-left">
-            <span class="text-lg font-serif font-bold text-slate-800">Questionnaire 5 : L'Architecture des 7 Clés</span>
-            <p class="mt-2 text-slate-600 text-sm">49 questions, 21 profils hybrides. Carte de conscience, PDF et envoi par email.</p>
-          </button>
         </div>
-        <p class="text-slate-400 text-xs mt-10">Version d'évaluation interne • Mycelium - The Rigged Personality Engine</p>
-      </div>
+        <p class="text-slate-400 text-xs mt-6">Version d'évaluation interne • Mycelium - The Rigged Personality Engine</p>
+      </section>
+
+      <!-- Section 2 : fond sombre — Questionnaire Mycélium (nom distinct) -->
+      <section class="w-full max-w-4xl mt-10 rounded-2xl p-8 md:p-10 bg-[#1a1f1e] border border-[#D4AF37]/20">
+        <h2 class="text-2xl font-serif font-bold text-[#F1F1E6] mb-2">Le Réseau Mycélium</h2>
+        <p class="text-[#F1F1E6]/80 text-sm mb-6">Carte des 7 Clés — 49 questions, 21 profils hybrides. Carte de conscience, PDF et envoi par email.</p>
+        <button data-test="self-growth" class="test-card w-full p-6 rounded-xl bg-[#070B0A] shadow-sm hover:shadow-md transition-all border border-[#D4AF37]/30 hover:border-[#D4AF37]/50 text-left group">
+          <span class="text-lg font-serif font-bold text-[#D4AF37]">L'Architecture des 7 Clés</span>
+          <p class="mt-2 text-[#F1F1E6]/70 text-sm">49 questions, 21 profils. Profil dominant, Constellation et degré d'intelligence selon Mycélium.</p>
+        </button>
+      </section>
     </div>
 
     <!-- Zone du test actif (questions + résultat) -->
