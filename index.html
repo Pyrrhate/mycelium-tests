@@ -13,11 +13,11 @@
     <!-- Accueil -->
     <div id="view-selector" class="min-h-screen flex flex-col items-center py-12 px-4 sm:px-6 md:px-8 bg-[#f6f4ef]">
       <div class="w-full max-w-4xl flex flex-col gap-10">
-        <!-- Barre auth : Entrer dans le Réseau / Espace de Sève -->
+        <!-- Barre auth : Entrer dans le Réseau / Mycélium Hub (un seul espace connecté) -->
         <nav class="flex justify-end gap-3">
           <span id="auth-status" class="text-slate-500 text-sm hidden"></span>
           <button id="btn-goto-temple" type="button" class="px-4 py-2 rounded-lg border border-[#D4AF37]/50 text-[#1a1f1e] bg-white/80 hover:bg-[#D4AF37]/20 font-medium text-sm transition">Entrer dans le Réseau</button>
-          <button id="btn-goto-dashboard" type="button" class="hidden px-4 py-2 rounded-lg bg-[#1a1f1e] text-[#D4AF37] border border-[#D4AF37]/40 hover:border-[#D4AF37]/70 font-medium text-sm transition">Espace de Sève</button>
+          <button id="btn-goto-hub" type="button" class="hidden px-4 py-2 rounded-lg bg-[#1a1f1e] text-[#D4AF37] border border-[#D4AF37]/40 hover:border-[#D4AF37]/70 font-medium text-sm transition">Mycélium Hub</button>
           <button id="btn-logout" type="button" class="hidden px-4 py-2 rounded-lg text-slate-600 hover:text-slate-800 text-sm">Se déconnecter</button>
         </nav>
         <!-- Titre du site -->
@@ -105,10 +105,10 @@
       </div>
     </div>
 
-    <!-- Dashboard de l'Initié (Espace de Sève) -->
+    <!-- Redirection : tout l’espace connecté est dans l’app React (Mycélium Hub). Ce bloc n’est plus affiché. -->
     <div id="view-dashboard" class="hidden min-h-screen bg-[#070B0A] text-[#F1F1E6] pb-24">
       <header class="sticky top-0 z-20 py-4 px-4 bg-[#070B0A]/95 border-b border-[#D4AF37]/20 flex items-center justify-between flex-wrap gap-2">
-        <h1 class="font-serif text-xl font-bold text-[#D4AF37]">Espace de Sève</h1>
+        <h1 class="font-serif text-xl font-bold text-[#D4AF37]">Mycélium Hub</h1>
         <div class="flex items-center gap-3">
           <p id="dashboard-sync-status" class="text-[#D4AF37]/80 text-xs flex items-center gap-1">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

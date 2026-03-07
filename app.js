@@ -269,8 +269,9 @@
     const modal = document.createElement('div');
     modal.id = 'share-modal';
     modal.className = 'fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4';
-    const flagSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" class="w-full max-w-md rounded-xl shadow-2xl"><rect width="300" height="200" fill="#FDDA24"/><path d="M150 40c-30 0-55 20-55 60s25 60 55 60 55-20 55-60-25-60-55-60zm0 95c-25 0-45-15-45-35s20-35 45-35 45 15 45 35-20 35-45 35z" fill="#000"/><path d="M130 75h40v50h-40z" fill="#000"/><path d="M115 70l35 15-35 15V70zm70 0v30l-35-15 35-15z" fill="#000"/></svg>';
-    modal.innerHTML = '<div class="bg-black/90 border-4 border-yellow-500 rounded-2xl p-6 max-w-lg w-full text-center"><h3 class="text-2xl font-black text-yellow-400 mb-4">VLAAMS VOLK, EEN ZIEL</h3><div class="mb-4">' + flagSvg + '</div><p class="text-yellow-100 font-bold">Le lion flamand. Nil volentibus arduum.</p><button id="btn-close-share" class="mt-5 px-6 py-3 rounded-xl bg-yellow-500 text-black font-black">OK</button></div>';
+    // GIF drapeau qui ondule au vent (drapeau belge noir-jaune-rouge ; remplacer par un GIF drapeau flamand si souhaité)
+    const flagGifUrl = 'https://media1.tenor.com/m/lEs2Q5ABz8MAAAAd/belgium-flag.gif';
+    modal.innerHTML = '<div class="bg-black/90 border-4 border-yellow-500 rounded-2xl p-6 max-w-lg w-full text-center"><h3 class="text-2xl font-black text-yellow-400 mb-4">VLAAMS VOLK, EEN ZIEL</h3><div class="mb-4 overflow-hidden rounded-xl shadow-2xl" style="max-height:280px"><img src="' + flagGifUrl + '" alt="Drapeau au vent" class="w-full h-auto object-cover object-center flag-wind-wave" style="min-height:200px" /></div><p class="text-yellow-100 font-bold">Le lion flamand. Nil volentibus arduum.</p><button id="btn-close-share" class="mt-5 px-6 py-3 rounded-xl bg-yellow-500 text-black font-black">OK</button></div>';
     document.body.appendChild(modal);
     $('#btn-close-share', modal).onclick = () => modal.remove();
   }
@@ -1393,15 +1394,16 @@
       });
     });
 
-    // --- Auth : session et redirection ---
+    // --- Auth : session et redirection vers le Hub (app React) ---
+    var HUB_URL = 'mycelium-app/dist/index.html';
     function updateAuthUI(session) {
       window._myceliumSession = session;
       var btnTemple = document.getElementById('btn-goto-temple');
-      var btnDashboard = document.getElementById('btn-goto-dashboard');
+      var btnHub = document.getElementById('btn-goto-hub');
       var btnLogout = document.getElementById('btn-logout');
       var authStatus = document.getElementById('auth-status');
       if (btnTemple) btnTemple.classList.toggle('hidden', !!session);
-      if (btnDashboard) btnDashboard.classList.toggle('hidden', !session);
+      if (btnHub) btnHub.classList.toggle('hidden', !session);
       if (btnLogout) btnLogout.classList.toggle('hidden', !session);
       if (authStatus) {
         authStatus.classList.toggle('hidden', !session);
@@ -1447,14 +1449,15 @@
       showView('temple');
     });
 
-    document.getElementById('btn-goto-dashboard').addEventListener('click', function () {
-      if (!window.authService) { showView('dashboard'); return; }
+    document.getElementById('btn-goto-hub').addEventListener('click', function () {
+      if (!window.authService) { window.location.href = HUB_URL; return; }
       window.authService.getSession().then(function (session) {
-        if (session) showView('dashboard');
-        else {
+        if (session) {
+          window.location.href = HUB_URL;
+        } else {
           var msg = document.getElementById('temple-message');
           if (msg) {
-            msg.textContent = 'Seul un initié peut pénétrer l\'Espace de Sève. Entrez vos identifiants ou prêtez serment.';
+            msg.textContent = 'Seul un initié peut pénétrer le Mycélium Hub. Entrez vos identifiants ou prêtez serment.';
             msg.classList.remove('hidden');
           }
           showView('temple');
@@ -1515,7 +1518,7 @@
           okEl.textContent = isSignUpMode ? 'Serment enregistré. Bienvenue dans le réseau.' : 'Vous êtes entré dans le réseau.';
           okEl.classList.remove('hidden');
           setTimeout(function () {
-            showView('dashboard');
+            window.location.href = HUB_URL;
             templeSubmit.disabled = false;
           }, 800);
         }).catch(function (err) {

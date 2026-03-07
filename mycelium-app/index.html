@@ -11,6 +11,11 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if (window.location.protocol === 'file:') {
+        document.getElementById('root').innerHTML = '<div style="padding:2rem;font-family:system-ui;text-align:center;max-width:480px;margin:2rem auto;color:#F1F1E6;background:#0d1211;border:1px solid rgba(212,175,55,0.3);border-radius:1rem;"><p style="color:#D4AF37;font-size:1.25rem;">Mycélium Hub</p><p style="margin:1rem 0;">Cette application doit être ouverte via un serveur web, pas en double-cliquant sur le fichier.</p><p style="margin:1rem 0;"><a href="http://localhost/mycelium-tests/" style="color:#D4AF37;">Ouvrir via Laragon → http://localhost/mycelium-tests/</a></p></div>';
+      }
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
