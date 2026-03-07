@@ -59,7 +59,12 @@ export async function save49Result(result, userId) {
           test_mycelium_completed: true,
           initiation_step: step,
           xp_seve: xp,
-          constellation_data: { poleAverages: result.poleAverages },
+          constellation_data: {
+            poleAverages: result.poleAverages,
+            hybrid: result.hybrid,
+            userName: result.userName ?? '',
+            qm: result.qm ?? 50,
+          },
         });
       } catch (_) {}
     }

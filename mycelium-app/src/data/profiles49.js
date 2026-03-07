@@ -67,3 +67,18 @@ export function calculateHybridProfile(scores) {
     key2: second,
   };
 }
+
+/** Quotient Mycélien à partir des moyennes par pôle (pour restauration depuis profil). */
+export function getQM(poleAverages) {
+  if (!poleAverages || poleAverages.length !== 7) return 50;
+  const n = 7;
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += poleAverages[i];
+  const mean = sum / n;
+  let variance = 0;
+  for (let i = 0; i < n; i++) variance += (poleAverages[i] - mean) ** 2;
+  variance /= n;
+  const sigma = Math.sqrt(variance);
+  const qm = Math.round(100 - 45 * sigma);
+  return Math.max(0, Math.min(100, qm));
+}

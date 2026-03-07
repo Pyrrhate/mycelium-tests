@@ -16,6 +16,7 @@ import { save49Result, updateProfile, getMaison } from '../services/myceliumSave
 import { getResonanceArchives, getActiveForestAwakening } from '../services/myceliumSave';
 import { useInitiationStatus } from '../hooks/useInitiationStatus';
 import { getRankFromXp, getXpProgressForNextRank } from '../data/ranks';
+import { calculateHybridProfile, getQM } from '../data/profiles49';
 import { TOTEMS } from '../data/totemData';
 import { ToastContainer } from './Toast';
 import Test49Racines from './Test49Racines';
@@ -59,7 +60,7 @@ export default function MyceliumHub({ session, onLogout }) {
   const [resonanceArchives, setResonanceArchives] = useState([]);
   const [forestAwakening, setForestAwakening] = useState(null);
 
-  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
+  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
 
   const addToast = (msg, variant = 'success') => {
     const id = Math.random().toString(36).slice(2);
@@ -106,6 +107,32 @@ export default function MyceliumHub({ session, onLogout }) {
     document.documentElement.style.setProperty('--accent', color);
     document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
   }, [elementPrimordial]);
+
+  // Réhydrater 49 Racines et totem depuis le profil Supabase (pour persistance après reconnexion)
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    if (profileTotem != null && profileTotem !== '') {
+      setTotem(profileTotem);
+      try {
+        localStorage.setItem('mycelium_totem', profileTotem);
+      } catch (_) {}
+    }
+    if (constellationData?.poleAverages && Array.isArray(constellationData.poleAverages) && constellationData.poleAverages.length === 7) {
+      const cd = constellationData;
+      const result = cd.hybrid
+        ? { poleAverages: cd.poleAverages, hybrid: cd.hybrid, userName: cd.userName ?? '', qm: cd.qm ?? 50 }
+        : {
+            poleAverages: cd.poleAverages,
+            hybrid: calculateHybridProfile(cd.poleAverages),
+            userName: cd.userName ?? '',
+            qm: getQM(cd.poleAverages),
+          };
+      setLastResult(result);
+      try {
+        localStorage.setItem('mycelium_last_result', JSON.stringify(result));
+      } catch (_) {}
+    }
+  }, [session?.user?.id, profileTotem, constellationData]);
 
   const handleLogout = async () => {
     if (supabase) await supabase.auth.signOut();
