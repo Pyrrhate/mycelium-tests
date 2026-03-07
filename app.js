@@ -1395,7 +1395,9 @@
     });
 
     // --- Auth : session et redirection vers le Hub (app React) ---
-    var HUB_URL = 'mycelium-app/dist/index.html';
+    var hubMeta = document.querySelector('meta[name="mycelium-hub-url"]');
+    var HUB_URL = (hubMeta && hubMeta.getAttribute('content') && hubMeta.getAttribute('content').trim()) ? hubMeta.getAttribute('content').trim() : 'mycelium-app/dist/index.html';
+    if (!HUB_URL) HUB_URL = '/';
     function updateAuthUI(session) {
       window._myceliumSession = session;
       var btnTemple = document.getElementById('btn-goto-temple');

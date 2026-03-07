@@ -13,6 +13,7 @@ import {
 import { PawPrint } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { save49Result, updateProfile, getMaison } from '../services/myceliumSave';
+import { useInitiationStatus } from '../hooks/useInitiationStatus';
 import { TOTEMS } from '../data/totemData';
 import { ToastContainer } from './Toast';
 import Test49Racines from './Test49Racines';
@@ -46,6 +47,8 @@ export default function MyceliumHub({ session, onLogout }) {
       return null;
     }
   });
+
+  const { canActivatePublic, isPublic, xpSeve, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
 
   const addToast = (msg, variant = 'success') => {
     const id = Math.random().toString(36).slice(2);
@@ -219,6 +222,29 @@ export default function MyceliumHub({ session, onLogout }) {
                 <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-medium">
                   Grade de Sève : Germe
                 </p>
+                {xpSeve > 0 && (
+                  <p className="mt-1 text-[#F1F1E6]/60 text-xs">XP : {xpSeve}</p>
+                )}
+                {/* V6 : Activer le Profil Public (débloqué après 49 Racines + Totem) */}
+                <div className="mt-4">
+                  {canActivatePublic ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!session?.user?.id || !supabase) return;
+                        const slug = (session?.user?.user_metadata?.display_name || session?.user?.email || 'initie').replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+                        await updateProfile(session.user.id, { is_public: !isPublic, public_constellation: !isPublic, slug: isPublic ? null : (slug || `initie-${session.user.id.slice(0, 8)}`) });
+                        addToast(isPublic ? 'Profil masqué de la Forêt.' : 'Profil visible dans la Forêt.');
+                        if (refetchInitiation) refetchInitiation();
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-medium hover:bg-[#D4AF37]/15 transition"
+                    >
+                      {isPublic ? 'Masquer de la Forêt' : 'Activer le Profil Public'}
+                    </button>
+                  ) : (
+                    <p className="text-[#F1F1E6]/50 text-xs">Complétez les 49 Racines et le Totem pour activer votre profil public.</p>
+                  )}
+                </div>
               </div>
             </div>
           </motion.section>

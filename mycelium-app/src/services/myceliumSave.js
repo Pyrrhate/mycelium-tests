@@ -45,6 +45,14 @@ export async function save49Result(result, userId) {
     } catch (e) {
       console.warn('Mycélium save49 forest_stats:', e?.message);
     }
+    if (userId) {
+      try {
+        const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve, initiation_step, test_mycelium_completed').eq('id', userId).single();
+        const xp = (profile?.xp_seve ?? 0) + 500;
+        const step = Math.max(profile?.initiation_step ?? 1, 2);
+        await updateProfile(userId, { test_mycelium_completed: true, initiation_step: step, xp_seve: xp });
+      } catch (_) {}
+    }
   }
 
   try {
@@ -62,7 +70,7 @@ export async function save49Result(result, userId) {
 }
 
 /**
- * Met à jour le profil Supabase (initiate_name, maison, totem).
+ * Met à jour le profil Supabase (initiate_name, maison, totem, flags V6).
  */
 export async function updateProfile(userId, data) {
   if (!supabase || !userId) return;
@@ -74,7 +82,14 @@ export async function updateProfile(userId, data) {
   if (data.maison !== undefined) row.maison = data.maison;
   if (data.totem !== undefined) row.totem = data.totem;
   if (data.public_constellation !== undefined) row.public_constellation = data.public_constellation;
+  if (data.is_public !== undefined) row.is_public = data.is_public;
   if (data.slug !== undefined) row.slug = data.slug;
+  if (data.test_mycelium_completed !== undefined) row.test_mycelium_completed = data.test_mycelium_completed;
+  if (data.test_totem_completed !== undefined) row.test_totem_completed = data.test_totem_completed;
+  if (data.initiation_step !== undefined) row.initiation_step = data.initiation_step;
+  if (data.xp_seve !== undefined) row.xp_seve = data.xp_seve;
+  if (data.constellation_data !== undefined) row.constellation_data = data.constellation_data;
+  if (data.element_primordial !== undefined) row.element_primordial = data.element_primordial;
   try {
     await supabase.from(TABLE_PROFILES).upsert(row, { onConflict: 'id' });
   } catch (e) {
@@ -84,10 +99,21 @@ export async function updateProfile(userId, data) {
 
 /**
  * Sauvegarde le totem en local et sur le profil Supabase.
+ * V6 : marque test_totem_completed, initiation_step, +300 XP.
  */
 export async function saveTotem(totemName, userId) {
   try {
     localStorage.setItem('mycelium_totem', totemName);
   } catch (_) {}
-  if (userId) await updateProfile(userId, { totem: totemName });
+  if (userId) {
+    await updateProfile(userId, { totem: totemName });
+    if (supabase) {
+      try {
+        const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve, initiation_step, test_totem_completed').eq('id', userId).single();
+        const xp = (profile?.xp_seve ?? 0) + 300;
+        const step = Math.max(profile?.initiation_step ?? 1, 3);
+        await updateProfile(userId, { test_totem_completed: true, initiation_step: step, xp_seve: xp });
+      } catch (_) {}
+    }
+  }
 }
