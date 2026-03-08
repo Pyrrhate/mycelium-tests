@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   Sparkles,
-  Network,
   BookOpen,
   User,
   LogOut,
@@ -15,13 +14,13 @@ import { supabase } from '../supabaseClient';
 import { save49Result, updateProfile, getMaison } from '../services/myceliumSave';
 import { getResonanceArchives, getActiveForestAwakening } from '../services/myceliumSave';
 import { useInitiationStatus } from '../hooks/useInitiationStatus';
+import { getNextQuestionnaireStep, STEP_LABELS, isStepUnlocked } from '../hooks/useNextStep';
 import { getRankFromXp, getXpProgressForNextRank } from '../data/ranks';
 import { calculateHybridProfile, getQM } from '../data/profiles49';
 import { TOTEMS } from '../data/totemData';
 import { ToastContainer } from './Toast';
 import Test49Racines from './Test49Racines';
 import QuestionnaireTotem from './QuestionnaireTotem';
-import VueReseau from './VueReseau';
 import VueEveilQuotidien from './VueEveilQuotidien';
 import VueResonance from './VueResonance';
 import VueElementMaitre from './VueElementMaitre';
@@ -35,6 +34,43 @@ import ConstellationCard from './ConstellationCard';
 import AvatarExplicationsCard from './AvatarExplicationsCard';
 import { generateSeal } from '../utils/sealGenerator';
 import { ELEMENT_TEST, getInitieElementLabel } from '../data/elementQuestions';
+
+/** Carte affichée quand l'étape est verrouillée (prérequis non accompli). */
+function LockedStepCard({ stepLabel, prerequisiteLabel, prerequisiteStep, onBack, onGoToPrerequisite }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-2xl mx-auto space-y-6"
+    >
+      <h1 className="font-serif text-2xl font-bold accent-color">{stepLabel}</h1>
+      <div
+        className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6 space-y-4"
+      >
+        <p className="text-[#F1F1E6]/90">
+          Pour accéder à <strong className="accent-color">{stepLabel}</strong>, accomplissez d'abord :
+        </p>
+        <p className="text-amber-200/90 font-medium">{prerequisiteLabel}</p>
+        <div className="flex flex-wrap gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onGoToPrerequisite}
+            className="px-4 py-2 rounded-xl bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 font-medium transition"
+          >
+            Aller à {prerequisiteLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-4 py-2 rounded-xl border border-[var(--accent)]/40 text-[#F1F1E6]/80 hover:bg-white/5 transition"
+          >
+            ← Retour au tableau de bord
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 /**
  * Mycélium Hub — Dashboard principal
@@ -137,6 +173,19 @@ export default function MyceliumHub({ session, onLogout }) {
     }
   }, [session?.user?.id, profileTotem, constellationData]);
 
+  // Parcours guidé : après 49 Racines et Totem, afficher les questionnaires un par un (Résonance → Élément → Matrice → Constellation)
+  useEffect(() => {
+    if (initiationLoading || !profile || !session?.user?.id) return;
+    const next = getNextQuestionnaireStep(profile);
+    if (next === 'constellation' || next === 'resonance' || next === 'element' || next === 'matrice') {
+      setActiveView(next);
+    } else if (next === null) {
+      setActiveView('dashboard');
+    }
+  }, [profile, initiationLoading, session?.user?.id]);
+
+  const nextStep = profile ? getNextQuestionnaireStep(profile) : '49racines';
+
   const handleLogout = async () => {
     if (supabase) await supabase.auth.signOut();
     if (onLogout) onLogout();
@@ -147,16 +196,15 @@ export default function MyceliumHub({ session, onLogout }) {
     { id: 'dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
     { id: '49racines', icon: BookOpen, label: 'Les 49 Racines' },
     { id: 'totem', icon: PawPrint, label: 'Mon Totem' },
-    { id: 'reseau', icon: Network, label: 'Le Réseau' },
-    { id: 'eveil', icon: Activity, label: 'Éveil Quotidien' },
+    { id: 'constellation', icon: Star, label: 'La Constellation' },
     { id: 'resonance', icon: Moon, label: 'La Résonance' },
     { id: 'element', icon: Flame, label: "L'Élément Maître" },
     { id: 'matrice', icon: Brain, label: "Matrice d'Intelligence" },
-    { id: 'constellation', icon: Star, label: 'La Constellation' },
+    { id: 'foret', icon: Users, label: 'La Forêt' },
+    { id: 'eveil', icon: Activity, label: 'Éveil Quotidien' },
     { id: 'deck', icon: Layers, label: 'Mon Deck' },
     { id: 'journal', icon: ScrollText, label: 'Journal de Sève' },
     { id: 'combat', icon: Swords, label: 'Le Duel' },
-    { id: 'foret', icon: Users, label: 'La Forêt' },
   ];
 
   const rank = getRankFromXp(xpSeve);
@@ -239,78 +287,127 @@ export default function MyceliumHub({ session, onLogout }) {
                   initiate_name: result.userName || undefined,
                   maison: result.hybrid?.profileKey ? getMaison(result.hybrid.profileKey) : undefined,
                 });
+                refetchInitiation?.();
               }
             }}
           />
         )}
         {activeView === 'totem' && (
-          <QuestionnaireTotem
-            onBack={() => setActiveView('dashboard')}
-            poleAverages={lastResult?.poleAverages}
-            userId={session?.user?.id}
-            savedTotemName={totem}
-            onComplete={(t) => {
-              setTotem(t?.name ?? null);
-            }}
-          />
-        )}
-        {activeView === 'reseau' && (
-          <VueReseau pulse={pulse} onBack={() => setActiveView('dashboard')} />
+          isStepUnlocked(profile, 'totem') ? (
+            <QuestionnaireTotem
+              onBack={() => setActiveView('dashboard')}
+              poleAverages={lastResult?.poleAverages}
+              userId={session?.user?.id}
+              savedTotemName={totem}
+              onComplete={async (t) => {
+                setTotem(t?.name ?? null);
+                refetchInitiation?.();
+              }}
+            />
+          ) : (
+            <LockedStepCard
+              stepLabel={STEP_LABELS.totem}
+              prerequisiteLabel={STEP_LABELS['49racines']}
+              prerequisiteStep="49racines"
+              onBack={() => setActiveView('dashboard')}
+              onGoToPrerequisite={() => setActiveView('49racines')}
+            />
+          )
         )}
         {activeView === 'eveil' && (
           <VueEveilQuotidien onBack={() => setActiveView('dashboard')} />
         )}
         {activeView === 'resonance' && (
-          <VueResonance
-            onBack={() => setActiveView('dashboard')}
-            userId={session?.user?.id}
-            lastResult49={lastResult}
-            onResonanceComplete={() => {
-              if (session?.user?.id) {
-                getResonanceArchives(session.user.id, 12).then(setResonanceArchives);
-                refetchInitiation?.();
-              }
-            }}
-          />
+          isStepUnlocked(profile, 'resonance') ? (
+            <VueResonance
+              onBack={() => setActiveView('dashboard')}
+              userId={session?.user?.id}
+              lastResult49={lastResult}
+              onResonanceComplete={() => {
+                if (session?.user?.id) {
+                  getResonanceArchives(session.user.id, 12).then(setResonanceArchives);
+                  refetchInitiation?.();
+                }
+              }}
+            />
+          ) : (
+            <LockedStepCard
+              stepLabel={STEP_LABELS.resonance}
+              prerequisiteLabel={STEP_LABELS.constellation}
+              prerequisiteStep="constellation"
+              onBack={() => setActiveView('dashboard')}
+              onGoToPrerequisite={() => setActiveView('constellation')}
+            />
+          )
         )}
         {activeView === 'element' && (
-          <VueElementMaitre
-            onBack={() => setActiveView('dashboard')}
-            userId={session?.user?.id}
-            onElementComplete={async (dominant) => {
-              const uid = session?.user?.id;
-              if (uid && dominant?.id) {
-                await updateProfile(uid, { element_primordial: dominant.id });
-                document.documentElement.style.setProperty('--accent', dominant.color ?? '#D4AF37');
-                const hex = (dominant.color ?? '#D4AF37').replace('#', '');
-                const r = parseInt(hex.slice(0, 2), 16);
-                const g = parseInt(hex.slice(2, 4), 16);
-                const b = parseInt(hex.slice(4, 6), 16);
-                document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
-                refetchInitiation?.();
-              }
-            }}
-          />
+          isStepUnlocked(profile, 'element') ? (
+            <VueElementMaitre
+              onBack={() => setActiveView('dashboard')}
+              userId={session?.user?.id}
+              onElementComplete={async (dominant) => {
+                const uid = session?.user?.id;
+                if (uid && dominant?.id) {
+                  await updateProfile(uid, { element_primordial: dominant.id });
+                  document.documentElement.style.setProperty('--accent', dominant.color ?? '#D4AF37');
+                  const hex = (dominant.color ?? '#D4AF37').replace('#', '');
+                  const r = parseInt(hex.slice(0, 2), 16);
+                  const g = parseInt(hex.slice(2, 4), 16);
+                  const b = parseInt(hex.slice(4, 6), 16);
+                  document.documentElement.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`);
+                  refetchInitiation?.();
+                }
+              }}
+            />
+          ) : (
+            <LockedStepCard
+              stepLabel={STEP_LABELS.element}
+              prerequisiteLabel={STEP_LABELS.resonance}
+              prerequisiteStep="resonance"
+              onBack={() => setActiveView('dashboard')}
+              onGoToPrerequisite={() => setActiveView('resonance')}
+            />
+          )
         )}
         {activeView === 'matrice' && (
-          <VueMatriceIntelligence
-            onBack={() => setActiveView('dashboard')}
-            userId={session?.user?.id}
-            onMatriceComplete={() => refetchInitiation?.()}
-          />
+          isStepUnlocked(profile, 'matrice') ? (
+            <VueMatriceIntelligence
+              onBack={() => setActiveView('dashboard')}
+              userId={session?.user?.id}
+              onMatriceComplete={() => refetchInitiation?.()}
+            />
+          ) : (
+            <LockedStepCard
+              stepLabel={STEP_LABELS.matrice}
+              prerequisiteLabel={STEP_LABELS.element}
+              prerequisiteStep="element"
+              onBack={() => setActiveView('dashboard')}
+              onGoToPrerequisite={() => setActiveView('element')}
+            />
+          )
         )}
         {activeView === 'constellation' && (
-          <VueConstellation
-            onBack={() => setActiveView('dashboard')}
-            userId={session?.user?.id}
-            onConstellationComplete={async (payload) => {
-              const uid = session?.user?.id;
-              if (uid && payload) {
-                await updateProfile(uid, { constellation_result: payload });
-                refetchInitiation?.();
-              }
-            }}
-          />
+          isStepUnlocked(profile, 'constellation') ? (
+            <VueConstellation
+              onBack={() => setActiveView('dashboard')}
+              userId={session?.user?.id}
+              onConstellationComplete={async (payload) => {
+                const uid = session?.user?.id;
+                if (uid && payload) {
+                  await updateProfile(uid, { constellation_result: payload });
+                  refetchInitiation?.();
+                }
+              }}
+            />
+          ) : (
+            <LockedStepCard
+              stepLabel={STEP_LABELS.constellation}
+              prerequisiteLabel={STEP_LABELS.totem}
+              prerequisiteStep="totem"
+              onBack={() => setActiveView('dashboard')}
+              onGoToPrerequisite={() => setActiveView('totem')}
+            />
+          )
         )}
         {activeView === 'deck' && (
           <VueDeck onBack={() => setActiveView('dashboard')} profile={profile} />
@@ -331,7 +428,7 @@ export default function MyceliumHub({ session, onLogout }) {
           />
         )}
         {activeView === 'foret' && (
-          <VueForet onBack={() => setActiveView('dashboard')} />
+          <VueForet pulse={pulse} onBack={() => setActiveView('dashboard')} />
         )}
         {activeView === 'dashboard' && (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -354,6 +451,26 @@ export default function MyceliumHub({ session, onLogout }) {
                 <p className="font-medium text-emerald-200">Éveil de la Forêt</p>
                 <p className="text-emerald-200/80 text-sm">Plus de 100 résonances cette semaine. Les avatars brillent pendant 24h.</p>
               </div>
+            </motion.div>
+          )}
+
+          {/* Prochaine étape du parcours */}
+          {nextStep && STEP_LABELS[nextStep] && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 flex items-center justify-between gap-3"
+            >
+              <span className="text-amber-200/90">
+                Prochaine étape : <strong>{STEP_LABELS[nextStep]}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveView(nextStep)}
+                className="px-4 py-2 rounded-xl bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 font-medium transition"
+              >
+                Continuer
+              </button>
             </motion.div>
           )}
 

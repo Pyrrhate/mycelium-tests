@@ -17,7 +17,7 @@ export function useInitiationStatus(userId) {
     setError(null);
     supabase
       .from('profiles')
-      .select('initiation_step, test_mycelium_completed, test_totem_completed, is_public, public_constellation, slug, xp_seve, element_primordial, totem, constellation_data, constellation_result, symbiose_points, initiate_name')
+      .select('initiation_step, test_mycelium_completed, test_totem_completed, is_public, public_constellation, slug, xp_seve, element_primordial, totem, constellation_data, constellation_result, symbiose_points, initiate_name, resonance_month_year, cognitive_title')
       .eq('id', userId)
       .single()
       .then(({ data, error: e }) => {

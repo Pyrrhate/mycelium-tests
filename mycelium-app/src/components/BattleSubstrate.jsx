@@ -34,42 +34,43 @@ export default function BattleSubstrate({ onBack, userId, profile, onVictory }) 
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const hasSavedVictory = useRef(false);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
 
   const playerMaxHp = masterStats ? cardMaxHp(masterStats.defense) : 80;
   const playerElement = masterStats?.element ?? 'Sève';
   const playerAttack = masterStats?.attack ?? 25;
   const playerDefense = masterStats?.defense ?? 20;
 
+  const handleAttack = useCallback(() => {
+    if (phaseRef.current !== 'player_turn') return;
+    const dmg = computeDamage(playerAttack, parasite.defense, playerElement, parasite.element);
+    setParasiteHp((h) => Math.max(0, h - dmg));
+    setMessage(`Vous infligez ${dmg} dégâts au Parasite.`);
+    setPhase('after_attack');
+  }, [playerAttack, playerElement, parasite.defense, parasite.element]);
+
   const handleStart = useCallback(() => {
     setPhase('player_turn');
     setMessage('Votre tour. Attaquez ou passez.');
   }, []);
 
-  const handleAttack = useCallback(() => {
-    if (phase !== 'player_turn' || !masterStats) return;
-    const dmg = computeDamage(playerAttack, parasite.defense, playerElement, parasite.element);
-    setParasiteHp((h) => Math.max(0, h - dmg));
-    setMessage(`Vous infligez ${dmg} dégâts au Parasite.`);
-    setPhase('after_attack');
-  }, [phase, masterStats, playerAttack, playerElement]);
-
   const handleEndTurn = useCallback(() => {
-    if (phase === 'after_attack' || phase === 'player_turn') {
-      setTurnCount((t) => t + 1);
-      setPlayerSeve((s) => Math.min(MAX_SEVE, s + SEVE_REGEN_PER_TURN));
-      setPhase('enemy_turn');
-      setMessage('Le Parasite attaque...');
+    if (phaseRef.current !== 'player_turn' && phaseRef.current !== 'after_attack') return;
+    setTurnCount((t) => t + 1);
+    setPlayerSeve((s) => Math.min(MAX_SEVE, s + SEVE_REGEN_PER_TURN));
+    setPhase('enemy_turn');
+    setMessage('Le Parasite attaque...');
+    setTimeout(() => {
+      const dmg = computeDamage(parasite.attack, playerDefense, parasite.element, playerElement);
+      setPlayerHp((h) => Math.max(0, h - dmg));
+      setMessage(`Le Parasite vous inflige ${dmg} dégâts.`);
       setTimeout(() => {
-        const dmg = computeDamage(parasite.attack, playerDefense, parasite.element, playerElement);
-        setPlayerHp((h) => Math.max(0, h - dmg));
-        setMessage(`Le Parasite vous inflige ${dmg} dégâts.`);
-        setTimeout(() => {
-          setPhase('player_turn');
-          setMessage('Votre tour.');
-        }, 1200);
-      }, 800);
-    }
-  }, [phase, parasite.attack, playerDefense, playerElement]);
+        setPhase('player_turn');
+        setMessage('Votre tour.');
+      }, 1200);
+    }, 800);
+  }, [parasite.attack, parasite.element, playerDefense, playerElement]);
 
   useEffect(() => {
     if (phase === 'intro' || phase === 'victory' || phase === 'defeat') return;
