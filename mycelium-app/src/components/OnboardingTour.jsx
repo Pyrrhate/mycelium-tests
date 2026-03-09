@@ -93,10 +93,18 @@ export default function OnboardingTour({
       const { data: profile } = await supabase.from('profiles').select('xp_seve').eq('id', userId).single();
       const xp = (profile?.xp_seve ?? 0) + 50;
       await updateProfile(userId, { has_completed_onboarding: true, xp_seve: xp });
+      try {
+        localStorage.setItem('mycelium_onboarding_done', '1');
+      } catch (_) {}
       setShowEveilModal(false);
       onComplete?.();
     } catch (e) {
       console.warn('Onboarding complete error', e);
+      try {
+        localStorage.setItem('mycelium_onboarding_done', '1');
+      } catch (_) {}
+      setShowEveilModal(false);
+      onComplete?.();
     }
     setCompleting(false);
   };

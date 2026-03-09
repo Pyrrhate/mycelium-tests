@@ -212,7 +212,8 @@ export default function MyceliumHub({ session, onLogout }) {
   const rank = getRankFromXp(xpSeve);
   const xpProgress = getXpProgressForNextRank(xpSeve);
 
-  const showOnboarding = session?.user && !initiationLoading && !hasCompletedOnboarding;
+  const onboardingDoneLocal = typeof localStorage !== 'undefined' && !!localStorage.getItem('mycelium_onboarding_done');
+  const showOnboarding = session?.user && !initiationLoading && !hasCompletedOnboarding && !onboardingDoneLocal;
 
   return (
     <div className={`min-h-screen bg-[#070B0A] text-[#F1F1E6] flex flex-col md:flex-row ${forestAwakening ? 'forest-awakening' : ''}`}>
@@ -224,7 +225,10 @@ export default function MyceliumHub({ session, onLogout }) {
           userDisplayName={session?.user?.user_metadata?.display_name || profile?.initiate_name || session?.user?.email}
           onComplete={() => refetchInitiation?.()}
           onSkip={async () => {
-            if (session?.user?.id) await updateProfile(session.user.id, { has_completed_onboarding: true });
+            try {
+              if (session?.user?.id) await updateProfile(session.user.id, { has_completed_onboarding: true });
+              localStorage.setItem('mycelium_onboarding_done', '1');
+            } catch (_) {}
             refetchInitiation?.();
           }}
           onGoToStep={(target) => {
