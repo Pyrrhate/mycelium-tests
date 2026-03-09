@@ -287,24 +287,60 @@ export async function getLastIntelligenceResult(userId) {
 
 /**
  * Journal de Sève : crée une entrée et retourne l'entrée avec id.
+ * primary_emotion : stocké dans detected_element si fourni (ex. calme, energie, clarte).
  */
-export async function saveJournalEntry(userId, { entry_text, detected_element, assigned_quest_id }) {
+export async function saveJournalEntry(userId, { entry_text, detected_element, assigned_quest_id, primary_emotion }) {
   if (!supabase || !userId || !entry_text?.trim()) return null;
   const { data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
     .insert({
       user_id: userId,
       entry_text: entry_text.trim(),
-      detected_element: detected_element ?? null,
+      detected_element: primary_emotion ?? detected_element ?? null,
       assigned_quest_id: assigned_quest_id ?? null,
     })
-    .select('id, created_at, assigned_quest_id, detected_element')
+    .select('id, created_at, assigned_quest_id, detected_element, entry_text')
     .single();
   if (error) {
     console.warn('Mycélium saveJournalEntry:', error.message);
     return null;
   }
   return data;
+}
+
+/**
+ * Met à jour une entrée du journal (texte et/ou émotion).
+ */
+export async function updateJournalEntry(userId, entryId, { entry_text, detected_element, primary_emotion }) {
+  if (!supabase || !userId || !entryId) return null;
+  const payload = {};
+  if (entry_text !== undefined) payload.entry_text = entry_text.trim();
+  if (primary_emotion !== undefined || detected_element !== undefined) payload.detected_element = primary_emotion ?? detected_element ?? null;
+  const { data, error } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .update(payload)
+    .eq('id', entryId)
+    .eq('user_id', userId)
+    .select('id, entry_text, detected_element, created_at')
+    .single();
+  if (error) {
+    console.warn('Mycélium updateJournalEntry:', error.message);
+    return null;
+  }
+  return data;
+}
+
+/**
+ * Supprime une entrée du journal.
+ */
+export async function deleteJournalEntry(userId, entryId) {
+  if (!supabase || !userId || !entryId) return false;
+  const { error } = await supabase.from(TABLE_USER_JOURNAL).delete().eq('id', entryId).eq('user_id', userId);
+  if (error) {
+    console.warn('Mycélium deleteJournalEntry:', error.message);
+    return false;
+  }
+  return true;
 }
 
 /**

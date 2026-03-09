@@ -46,3 +46,4 @@ CREATE POLICY "Users can insert own match_history" ON match_history FOR INSERT W
 CREATE POLICY "Users can read own user_journal" ON user_journal FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own user_journal" ON user_journal FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own user_journal" ON user_journal FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own user_journal" ON user_journal FOR DELETE USING (auth.uid() = user_id);
