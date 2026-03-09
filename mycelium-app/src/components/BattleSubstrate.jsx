@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Swords, SkipForward, RotateCcw } from 'lucide-react';
+import { TOTEMS } from '../data/totemData';
 import { generateCardStats } from '../data/cardEngine';
 import { computeDamage, SEVE_REGEN_PER_TURN, MAX_SEVE, INITIAL_SEVE, cardMaxHp } from '../data/battleEngine';
 import { PARASITE_DE_CENDRES, ORACLE_ADVICE_LOSS, REWARD_CARD_NAME, REWARD_TITLE } from '../data/parasiteBoss';
@@ -129,6 +130,11 @@ export default function BattleSubstrate({ onBack, userId, profile, onVictory }) 
         </div>
         <div className="text-center">
           <p className="text-xs text-[#F1F1E6]/50">Tour {turnCount}</p>
+          <p className="text-[10px] text-[var(--accent)]/80 uppercase tracking-wider mt-0.5">
+            {phase === 'player_turn' && 'Phase d\'attaque'}
+            {phase === 'after_attack' && 'Attaque effectuée'}
+            {phase === 'enemy_turn' && 'Phase adverse'}
+          </p>
           {message && <p className="text-sm text-[#F1F1E6]/90 mt-1">{message}</p>}
         </div>
         <div className="w-48 text-right">
@@ -185,6 +191,10 @@ export default function BattleSubstrate({ onBack, userId, profile, onVictory }) 
                   <p className="text-xs uppercase text-[var(--accent)]/80">Votre carte</p>
                   <p className="font-serif text-lg font-bold text-[#F1F1E6]">{masterStats?.initiateName ?? 'Initié'}</p>
                   <p className="text-sm text-[#F1F1E6]/70">ATQ {playerAttack} · DEF {playerDefense} · {playerElement}</p>
+                  {cardProfile?.totem && (() => {
+                    const t = TOTEMS.find((x) => x.name === cardProfile.totem);
+                    return t?.mantra ? <p className="text-xs text-[#F1F1E6]/60 italic mt-2">&ldquo;{t.mantra}&rdquo;</p> : null;
+                  })()}
                 </div>
                 <div className="rounded-2xl border-2 border-red-900/50 bg-red-950/20 px-6 py-4 backdrop-blur-xl">
                   <p className="text-xs uppercase text-red-400/80">Parasite de Cendre</p>

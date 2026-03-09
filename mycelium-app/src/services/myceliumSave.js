@@ -123,6 +123,7 @@ export async function updateProfile(userId, data) {
   if (data.cognitive_title !== undefined) row.cognitive_title = data.cognitive_title;
   if (data.has_completed_onboarding !== undefined) row.has_completed_onboarding = data.has_completed_onboarding;
   if (data.unlocked_seals !== undefined) row.unlocked_seals = data.unlocked_seals;
+  if (data.narrative_roots !== undefined) row.narrative_roots = data.narrative_roots;
   try {
     await supabase.from(TABLE_PROFILES).upsert(row, { onConflict: 'id' });
   } catch (e) {

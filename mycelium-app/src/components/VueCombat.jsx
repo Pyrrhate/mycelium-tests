@@ -5,8 +5,13 @@ import BattleSubstrate from './BattleSubstrate';
 /**
  * Vue Duel — choix du scénario puis lancement du BattleSubstrate en plein écran.
  */
-export default function VueCombat({ onBack, userId, profile }) {
+export default function VueCombat({ onBack, userId, profile, onVictoryRefetch }) {
   const [inBattle, setInBattle] = useState(false);
+
+  const handleVictory = () => {
+    setInBattle(false);
+    onVictoryRefetch?.();
+  };
 
   if (inBattle) {
     return (
@@ -14,7 +19,7 @@ export default function VueCombat({ onBack, userId, profile }) {
         onBack={() => setInBattle(false)}
         userId={userId}
         profile={profile}
-        onVictory={() => {}}
+        onVictory={handleVictory}
       />
     );
   }

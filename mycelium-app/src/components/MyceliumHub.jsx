@@ -28,6 +28,7 @@ import VueJournal from './VueJournal';
 import VueCombat from './VueCombat';
 import VueParametres from './VueParametres';
 import VueNotifications from './VueNotifications';
+import VueProfil from './VueProfil';
 import OnboardingTour from './OnboardingTour';
 import ConstellationCard from './ConstellationCard';
 import AvatarExplicationsCard from './AvatarExplicationsCard';
@@ -100,12 +101,18 @@ export default function MyceliumHub({ session, onLogout }) {
   const [forestAwakening, setForestAwakening] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [questionnaireStepOverride, setQuestionnaireStepOverride] = useState(null);
+  const [bioDraft, setBioDraft] = useState('');
+  const [bioSaving, setBioSaving] = useState(false);
+
+  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, constellationResult, symbiosePoints, profile, loading: initiationLoading, refetch: refetchInitiation, hasCompletedOnboarding, unlockedSeals, narrativeRoots } = useInitiationStatus(session?.user?.id);
+
+  useEffect(() => {
+    setBioDraft(narrativeRoots ?? '');
+  }, [narrativeRoots]);
 
   useEffect(() => {
     if (activeView !== 'questionnaires') setQuestionnaireStepOverride(null);
   }, [activeView]);
-
-  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, constellationResult, symbiosePoints, profile, loading: initiationLoading, refetch: refetchInitiation, hasCompletedOnboarding, unlockedSeals } = useInitiationStatus(session?.user?.id);
 
   const addToast = (msg, variant = 'success') => {
     const id = Math.random().toString(36).slice(2);
@@ -198,6 +205,7 @@ export default function MyceliumHub({ session, onLogout }) {
 
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
+    { id: 'profil', icon: User, label: 'Mon profil' },
     { id: 'questionnaires', icon: BookOpen, label: 'Parcours d\'initiation' },
     { id: 'constellation', icon: Star, label: 'L\'Observatoire de la Constellation' },
     { id: 'eveil', icon: Activity, label: 'Éveil Quotidien' },
@@ -297,13 +305,17 @@ export default function MyceliumHub({ session, onLogout }) {
             <span className="text-xs leading-tight">{item.label}</span>
           </motion.button>
         ))}
-        {/* XP & Grade dans la sidebar */}
+        {/* XP & PS & Grade dans la sidebar — source unique useInitiationStatus */}
         <div className="mt-auto px-3 pt-4 border-t border-[var(--accent)]/10">
           <p className="text-[#F1F1E6]/70 text-xs font-medium accent-color">{rank.label}</p>
-          <p className="text-lg font-bold accent-color tabular-nums">{xpSeve} XP</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <p className="text-lg font-bold accent-color tabular-nums">{xpSeve} XP</p>
+            <p className="text-sm text-emerald-400/90 tabular-nums">{symbiosePoints} PS</p>
+          </div>
           <div className="h-1.5 rounded-full bg-[#0d1211] border border-[var(--accent)]/20 overflow-hidden mt-1">
             <motion.div
               className="h-full bg-[var(--accent)]/80 rounded-full"
+              key={xpSeve}
               initial={{ width: 0 }}
               animate={{ width: xpProgress.needed ? `${(xpProgress.current / xpProgress.needed) * 100}%` : '100%' }}
               transition={{ duration: 0.6 }}
@@ -392,10 +404,51 @@ export default function MyceliumHub({ session, onLogout }) {
             onBack={() => setActiveView('dashboard')}
             userId={session?.user?.id}
             profile={profile}
+            onVictoryRefetch={refetchInitiation}
           />
         )}
         {activeView === 'foret' && (
-          <VueForet pulse={pulse} onBack={() => setActiveView('dashboard')} />
+          <VueForet pulse={pulse} onBack={() => setActiveView('dashboard')} addToast={addToast} />
+        )}
+        {activeView === 'profil' && (
+          <VueProfil
+            onBack={() => setActiveView('dashboard')}
+            onGoToParametres={() => setActiveView('parametres')}
+            session={session}
+            profile={profile}
+            totem={totem}
+            rank={rank}
+            xpProgress={xpProgress}
+            xpSeve={xpSeve}
+            symbiosePoints={symbiosePoints}
+            elementPrimordial={elementPrimordial}
+            canActivatePublic={canActivatePublic}
+            isPublic={isPublic}
+            unlockedSeals={unlockedSeals}
+            narrativeRoots={narrativeRoots}
+            bioDraft={bioDraft}
+            setBioDraft={setBioDraft}
+            bioSaving={bioSaving}
+            onSaveBio={async () => {
+              if (!session?.user?.id) return;
+              setBioSaving(true);
+              await updateProfile(session.user.id, { narrative_roots: bioDraft || null });
+              refetchInitiation?.();
+              setBioSaving(false);
+              addToast('Racines Narratives enregistrées.');
+            }}
+            addToast={addToast}
+            onToggleForest={async () => {
+              if (!session?.user?.id || !supabase) return;
+              const slug = (session?.user?.user_metadata?.display_name || session?.user?.email || 'initie').replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+              await updateProfile(session.user.id, { is_public: !isPublic, public_constellation: !isPublic, slug: isPublic ? null : (slug || `initie-${session.user.id.slice(0, 8)}`) });
+              addToast(isPublic ? 'Profil masqué de la Forêt.' : 'Profil visible dans la Forêt.');
+              refetchInitiation?.();
+            }}
+            refetchInitiation={refetchInitiation}
+            updateProfile={updateProfile}
+            supabase={supabase}
+          />
         )}
         {activeView === 'parametres' && (
           <VueParametres
@@ -592,6 +645,31 @@ export default function MyceliumHub({ session, onLogout }) {
                     <p className="text-[#F1F1E6]/50 text-xs">Complétez les 49 Racines, le Totem et atteignez 1500 XP (Racine Ancrée) pour activer votre profil public.</p>
                   )}
                 </div>
+                {/* Racines Narratives — bio en Glassmorphism */}
+                <div className="w-full mt-6 pt-4 border-t border-white/10">
+                  <p className="text-[#F1F1E6]/70 text-xs uppercase tracking-wider mb-2">Racines Narratives</p>
+                  <textarea
+                    value={bioDraft}
+                    onChange={(e) => setBioDraft(e.target.value)}
+                    placeholder="Décrivez-vous en quelques lignes pour les initiés de la Forêt..."
+                    className="w-full min-h-[100px] px-4 py-3 rounded-xl bg-white/5 border border-[var(--accent)]/20 text-[#F1F1E6] placeholder-[#F1F1E6]/40 focus:border-[var(--accent)]/40 focus:ring-1 focus:ring-[var(--accent)]/20 outline-none resize-y transition"
+                  />
+                  <button
+                    type="button"
+                    disabled={bioSaving || (bioDraft === (narrativeRoots ?? ''))}
+                    onClick={async () => {
+                      if (!session?.user?.id) return;
+                      setBioSaving(true);
+                      await updateProfile(session.user.id, { narrative_roots: bioDraft || null });
+                      refetchInitiation?.();
+                      setBioSaving(false);
+                      addToast('Racines Narratives enregistrées.');
+                    }}
+                    className="mt-2 px-4 py-2 rounded-xl text-sm font-medium bg-[var(--accent)]/20 border border-[var(--accent)]/40 accent-color hover:bg-[var(--accent)]/30 disabled:opacity-50 transition"
+                  >
+                    {bioSaving ? 'Enregistrement…' : 'Enregistrer'}
+                  </button>
+              </div>
               </div>
             </div>
           </motion.section>

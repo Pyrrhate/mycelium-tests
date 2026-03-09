@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, PawPrint, Moon, Flame, Brain, ChevronRight } from 'lucide-react';
-import { getNextQuestionnaireStep, STEP_LABELS, isStepUnlocked } from '../hooks/useNextStep';
+import { BookOpen, PawPrint, Moon, Flame, Brain, ChevronRight, Lock } from 'lucide-react';
+import { getNextQuestionnaireStep, STEP_LABELS, isStepUnlocked, getPrerequisiteStep } from '../hooks/useNextStep';
 import Test49Racines from './Test49Racines';
 import QuestionnaireTotem from './QuestionnaireTotem';
 import VueResonance from './VueResonance';
@@ -122,11 +122,17 @@ export default function VueQuestionnaires({
             } catch (_) {}
             const uid = session?.user?.id;
             if (uid && result) {
-              await save49Result(result, uid);
-              await updateProfile(uid, {
-                initiate_name: result.userName || undefined,
-                maison: result.hybrid?.profileKey ? getMaison(result.hybrid.profileKey) : undefined,
-              });
+              try {
+                await save49Result(result, uid);
+                await updateProfile(uid, {
+                  initiate_name: result.userName || undefined,
+                  maison: result.hybrid?.profileKey ? getMaison(result.hybrid.profileKey) : undefined,
+                });
+              } catch (e) {
+                console.warn('Sauvegarde 49 Racines:', e?.message);
+              }
+              refetchInitiation?.();
+            } else {
               refetchInitiation?.();
             }
           }}
@@ -257,10 +263,11 @@ export default function VueQuestionnaires({
                   ? 'bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40'
                   : unlocked
                     ? 'text-[#F1F1E6]/80 hover:bg-white/5 border border-transparent'
-                    : 'text-[#F1F1E6]/40 cursor-not-allowed border border-transparent'
+                    : 'text-[#F1F1E6]/40 cursor-not-allowed border border-transparent opacity-80'
               }`}
-              title={STEP_LABELS[s.id]}
+              title={unlocked ? STEP_LABELS[s.id] : `Verrouillé : accomplir ${STEP_LABELS[getPrerequisiteStep(s.id)] || 'l\'étape précédente'} d'abord`}
             >
+              {!unlocked && <Lock className="w-4 h-4 flex-shrink-0" />}
               <Icon className="w-4 h-4 flex-shrink-0" />
               <span className="hidden sm:inline">{s.label}</span>
               {i < QUESTIONNAIRE_STEPS.length - 1 && (

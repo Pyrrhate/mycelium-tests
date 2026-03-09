@@ -11,7 +11,7 @@ const EMAIL_NOT_CONFIRMED = 'Email not confirmed';
  * Design Glassmorphism bioluminescent, bordures or/émeraude, lueur selon l'action (doré / bleu éthéré).
  * Gestion "Email not confirmed" + bouton Renvoyer l'e-mail de confirmation.
  */
-export default function AuthGate({ onAuth, children, initialMode, onBack }) {
+export default function AuthGate({ onAuth, children, initialMode, onBack, sessionFromParent }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode || 'login');
@@ -147,7 +147,10 @@ export default function AuthGate({ onAuth, children, initialMode, onBack }) {
     );
   }
 
-  if (session) {
+  // Si le parent a déjà une session (ex. après login), afficher les enfants tout de suite
+  const effectiveSession = sessionFromParent || session;
+
+  if (effectiveSession) {
     if (children) return children;
     return (
       <div className="min-h-screen bg-[#070B0A] flex items-center justify-center">

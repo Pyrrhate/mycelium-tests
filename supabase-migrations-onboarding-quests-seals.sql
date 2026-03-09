@@ -9,7 +9,13 @@ ALTER TABLE public.profiles
 COMMENT ON COLUMN public.profiles.has_completed_onboarding IS 'Tour guidé terminé (Éclats de Sève)';
 COMMENT ON COLUMN public.profiles.unlocked_seals IS 'IDs des Sceaux de Maîtrise débloqués (7 quêtes par clé)';
 
--- Table des logs quotidiens (quête du jour, validation, élément)
+-- Bio utilisateur (Racines Narratives)
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS narrative_roots text;
+
+COMMENT ON COLUMN public.profiles.narrative_roots IS 'Texte libre de présentation (Racines Narratives)';
+
+-- Table des logs quotidiens
 CREATE TABLE IF NOT EXISTS public.daily_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
