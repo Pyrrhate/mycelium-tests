@@ -41,7 +41,7 @@ export function isStepUnlocked(profile, stepId) {
     case '49racines':
       return profile.test_mycelium_completed === true;
     case 'totem':
-      return profile.test_totem_completed === true;
+      return profile.test_totem_completed === true || !!profile.totem;
     case 'constellation':
       return !!profile.constellation_result;
     case 'resonance':

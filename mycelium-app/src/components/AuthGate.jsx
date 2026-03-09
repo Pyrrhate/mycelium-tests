@@ -11,10 +11,10 @@ const EMAIL_NOT_CONFIRMED = 'Email not confirmed';
  * Design Glassmorphism bioluminescent, bordures or/émeraude, lueur selon l'action (doré / bleu éthéré).
  * Gestion "Email not confirmed" + bouton Renvoyer l'e-mail de confirmation.
  */
-export default function AuthGate({ onAuth, children }) {
+export default function AuthGate({ onAuth, children, initialMode, onBack }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState(initialMode || 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -147,8 +147,15 @@ export default function AuthGate({ onAuth, children }) {
     );
   }
 
-  if (session && children) {
-    return children;
+  if (session) {
+    if (children) return children;
+    return (
+      <div className="min-h-screen bg-[#070B0A] flex items-center justify-center">
+        <motion.div animate={{ opacity: [0.5, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="text-[#D4AF37] font-serif">
+          Entrée dans la Clairière…
+        </motion.div>
+      </div>
+    );
   }
 
   const isSignup = mode === 'signup';
@@ -305,6 +312,11 @@ export default function AuthGate({ onAuth, children }) {
                   </>
                 )}
               </button>
+              {onBack && (
+                <button type="button" onClick={onBack} className="text-[#F1F1E6]/50 text-sm hover:text-[#F1F1E6]/80 transition py-1">
+                  ← Retour à l&apos;accueil
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {

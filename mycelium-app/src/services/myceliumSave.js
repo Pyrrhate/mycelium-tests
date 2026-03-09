@@ -11,7 +11,10 @@ const TABLE_FOREST_AWAKENING = 'forest_awakening';
 const TABLE_INTELLIGENCE_MATRIX = 'intelligence_matrix';
 const TABLE_MATCH_HISTORY = 'match_history';
 const TABLE_USER_JOURNAL = 'user_journal';
+const TABLE_DAILY_LOGS = 'daily_logs';
 const XP_RESONANCE = 400;
+const XP_QUEST_DAILY = 50;
+const PS_QUEST_DAILY = 20;
 const XP_MATRICE = 300;
 const XP_MATCH_WIN = 20;
 const PS_MATCH_WIN = 50;
@@ -118,6 +121,8 @@ export async function updateProfile(userId, data) {
   if (data.resonance_month_year !== undefined) row.resonance_month_year = data.resonance_month_year;
   if (data.capacite_maillage !== undefined) row.capacite_maillage = data.capacite_maillage;
   if (data.cognitive_title !== undefined) row.cognitive_title = data.cognitive_title;
+  if (data.has_completed_onboarding !== undefined) row.has_completed_onboarding = data.has_completed_onboarding;
+  if (data.unlocked_seals !== undefined) row.unlocked_seals = data.unlocked_seals;
   try {
     await supabase.from(TABLE_PROFILES).upsert(row, { onConflict: 'id' });
   } catch (e) {
@@ -416,4 +421,123 @@ export async function saveMatchResult(userId, payload) {
   }
 
   return row;
+}
+
+// ——— Quêtes quotidiennes (daily_logs) & Sceaux ———
+
+/**
+ * Récupère ou crée l'entrée daily_log pour aujourd'hui (quête du jour).
+ * @param {string} userId
+ * @param {object} quest - { id, key, task } (getQuestForDay)
+ * @returns {Promise<{ id, log_date, quest_id, element_key, task_text, is_quest_completed }|null>}
+ */
+export async function getOrCreateDailyLog(userId, quest) {
+  if (!supabase || !userId) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: existing } = await supabase
+    .from(TABLE_DAILY_LOGS)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('log_date', today)
+    .maybeSingle();
+  if (existing) return existing;
+  if (!quest) return null;
+  const key = (quest.key || '').toLowerCase().replace(/éther/, 'ether');
+  const elementKey = { Ancrage: 'ancrage', Spore: 'spore', Lyse: 'lyse', Expansion: 'expansion', Fructification: 'fructification', Absorption: 'absorption', Dormance: 'dormance' }[quest.key] || key;
+  const { data: inserted } = await supabase
+    .from(TABLE_DAILY_LOGS)
+    .insert({
+      user_id: userId,
+      log_date: today,
+      quest_id: quest.id,
+      element_key: elementKey,
+      task_text: quest.task,
+    })
+    .select('*')
+    .single();
+  return inserted;
+}
+
+/**
+ * Récupère le log du jour (pour afficher la quête).
+ */
+export async function getTodayDailyLog(userId) {
+  if (!supabase || !userId) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await supabase
+    .from(TABLE_DAILY_LOGS)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('log_date', today)
+    .maybeSingle();
+  return data;
+}
+
+/**
+ * Valide la quête du jour : +50 XP, +20 PS, met à jour daily_log et vérifie les Sceaux.
+ */
+export async function completeDailyQuest(userId) {
+  if (!supabase || !userId) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: log } = await supabase
+    .from(TABLE_DAILY_LOGS)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('log_date', today)
+    .maybeSingle();
+  if (!log || log.is_quest_completed) return log;
+  const now = new Date().toISOString();
+  await supabase
+    .from(TABLE_DAILY_LOGS)
+    .update({ is_quest_completed: true, completed_at: now })
+    .eq('id', log.id);
+  const { data: profile } = await supabase.from(TABLE_PROFILES).select('xp_seve, symbiose_points, unlocked_seals').eq('id', userId).single();
+  const xp = (profile?.xp_seve ?? 0) + XP_QUEST_DAILY;
+  const ps = Math.max(0, (profile?.symbiose_points ?? 0) + PS_QUEST_DAILY);
+  await updateProfile(userId, { xp_seve: xp, symbiose_points: ps });
+  const newSeal = await checkMasteryThreshold(userId, log.element_key);
+  let newlyUnlockedSeal = null;
+  if (newSeal) {
+    const seals = Array.isArray(profile?.unlocked_seals) ? profile.unlocked_seals : [];
+    if (!seals.includes(newSeal)) {
+      await updateProfile(userId, { unlocked_seals: [...seals, newSeal] });
+      newlyUnlockedSeal = newSeal;
+    }
+  }
+  return { log: { ...log, is_quest_completed: true, completed_at: now }, newlyUnlockedSeal };
+}
+
+/**
+ * Compte les quêtes complétées par element_key pour l'utilisateur. Si >= 7, retourne l'id du Sceau.
+ */
+export async function checkMasteryThreshold(userId, elementKey) {
+  if (!supabase || !userId || !elementKey) return null;
+  const { data: rows } = await supabase
+    .from(TABLE_DAILY_LOGS)
+    .select('id')
+    .eq('user_id', userId)
+    .eq('element_key', elementKey)
+    .eq('is_quest_completed', true);
+  const count = rows?.length ?? 0;
+  if (count >= 7) {
+    const SEAL_IDS = { spore: 'spore', ancrage: 'ancrage', expansion: 'expansion', lyse: 'lyse', fructification: 'fructification', absorption: 'absorption', dormance: 'dormance' };
+    return SEAL_IDS[elementKey] || elementKey;
+  }
+  return null;
+}
+
+/**
+ * Liste des daily_logs pour un mois (calendrier Éveil).
+ */
+export async function getDailyLogsForCalendar(userId, year, month) {
+  if (!supabase || !userId) return [];
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const end = new Date(year, month, 0).toISOString().slice(0, 10);
+  const { data } = await supabase
+    .from(TABLE_DAILY_LOGS)
+    .select('log_date, element_key, is_quest_completed')
+    .eq('user_id', userId)
+    .gte('log_date', start)
+    .lte('log_date', end);
+  return data ?? [];
 }

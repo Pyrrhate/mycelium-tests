@@ -9,7 +9,7 @@ import {
   Activity,
   Droplets,
 } from 'lucide-react';
-import { PawPrint, Moon, Flame, Brain, Users, Star, Layers, ScrollText, Swords, Menu, X } from 'lucide-react';
+import { PawPrint, Moon, Flame, Brain, Users, Star, Layers, ScrollText, Swords, Menu, X, Settings, Bell } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { save49Result, updateProfile, getMaison } from '../services/myceliumSave';
 import { getResonanceArchives, getActiveForestAwakening } from '../services/myceliumSave';
@@ -26,10 +26,14 @@ import ConstellationView from './ConstellationView';
 import VueDeck from './VueDeck';
 import VueJournal from './VueJournal';
 import VueCombat from './VueCombat';
+import VueParametres from './VueParametres';
+import VueNotifications from './VueNotifications';
+import OnboardingTour from './OnboardingTour';
 import ConstellationCard from './ConstellationCard';
 import AvatarExplicationsCard from './AvatarExplicationsCard';
 import { generateSeal } from '../utils/sealGenerator';
 import { ELEMENT_TEST, getInitieElementLabel } from '../data/elementQuestions';
+import { SEALS_MASTERY, SEAL_ORDER } from '../data/sealsMastery';
 
 /** Carte affichée quand l'étape est verrouillée (prérequis non accompli). */
 function LockedStepCard({ stepLabel, prerequisiteLabel, prerequisiteStep, onBack, onGoToPrerequisite }) {
@@ -95,8 +99,13 @@ export default function MyceliumHub({ session, onLogout }) {
   const [resonanceArchives, setResonanceArchives] = useState([]);
   const [forestAwakening, setForestAwakening] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [questionnaireStepOverride, setQuestionnaireStepOverride] = useState(null);
 
-  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, constellationResult, symbiosePoints, profile, loading: initiationLoading, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
+  useEffect(() => {
+    if (activeView !== 'questionnaires') setQuestionnaireStepOverride(null);
+  }, [activeView]);
+
+  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, constellationResult, symbiosePoints, profile, loading: initiationLoading, refetch: refetchInitiation, hasCompletedOnboarding, unlockedSeals } = useInitiationStatus(session?.user?.id);
 
   const addToast = (msg, variant = 'success') => {
     const id = Math.random().toString(36).slice(2);
@@ -196,14 +205,34 @@ export default function MyceliumHub({ session, onLogout }) {
     { id: 'deck', icon: Layers, label: 'Mon Deck' },
     { id: 'combat', icon: Swords, label: 'Le Duel' },
     { id: 'foret', icon: Users, label: 'La Forêt' },
+    { id: 'notifications', icon: Bell, label: 'Notifications' },
+    { id: 'parametres', icon: Settings, label: 'Paramètres' },
   ];
 
   const rank = getRankFromXp(xpSeve);
   const xpProgress = getXpProgressForNextRank(xpSeve);
 
+  const showOnboarding = session?.user && !initiationLoading && !hasCompletedOnboarding;
+
   return (
     <div className={`min-h-screen bg-[#070B0A] text-[#F1F1E6] flex flex-col md:flex-row ${forestAwakening ? 'forest-awakening' : ''}`}>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+      {showOnboarding && (
+        <OnboardingTour
+          show={showOnboarding}
+          userId={session?.user?.id}
+          userDisplayName={session?.user?.user_metadata?.display_name || profile?.initiate_name || session?.user?.email}
+          onComplete={() => refetchInitiation?.()}
+          onSkip={async () => {
+            if (session?.user?.id) await updateProfile(session.user.id, { has_completed_onboarding: true });
+            refetchInitiation?.();
+          }}
+          onGoToStep={(target) => {
+            if (target && target !== 'xp') setActiveView(target);
+          }}
+          currentView={activeView}
+        />
+      )}
 
       {/* Barre mobile : titre + menu burger en haut à droite */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-[var(--accent)]/20 bg-[#070B0A]/95 backdrop-blur-lg sticky top-0 z-30">
@@ -303,10 +332,16 @@ export default function MyceliumHub({ session, onLogout }) {
             onBack={() => setActiveView('dashboard')}
             setResonanceArchives={setResonanceArchives}
             onNavigateToConstellation={() => setActiveView('constellation')}
+            initialStepOverride={questionnaireStepOverride}
           />
         )}
         {activeView === 'eveil' && (
-          <VueEveilQuotidien onBack={() => setActiveView('dashboard')} />
+          <VueEveilQuotidien
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            poleAverages={profile?.constellation_data?.poleAverages ?? lastResult?.poleAverages}
+            onQuestComplete={refetchInitiation}
+          />
         )}
         {activeView === 'constellation' && (
           isStepUnlocked(profile, 'constellation') ? (
@@ -332,19 +367,20 @@ export default function MyceliumHub({ session, onLogout }) {
               prerequisiteLabel={STEP_LABELS.totem}
               prerequisiteStep="totem"
               onBack={() => setActiveView('dashboard')}
-              onGoToPrerequisite={() => setActiveView('totem')}
+              onGoToPrerequisite={() => { setQuestionnaireStepOverride('totem'); setActiveView('questionnaires'); }}
             />
           )
         )}
         {activeView === 'deck' && (
-          <VueDeck onBack={() => setActiveView('dashboard')} profile={profile} />
+          <VueDeck onBack={() => setActiveView('dashboard')} profile={profile} lastResult={lastResult} />
         )}
         {activeView === 'journal' && (
           <VueJournal
             onBack={() => setActiveView('dashboard')}
             userId={session?.user?.id}
             initiateName={profile?.initiate_name || session?.user?.user_metadata?.display_name || 'Initié'}
-            onQuestComplete={() => refetchInitiation?.()}
+            poleAverages={profile?.constellation_data?.poleAverages ?? lastResult?.poleAverages}
+            onQuestComplete={refetchInitiation}
           />
         )}
         {activeView === 'combat' && (
@@ -356,6 +392,25 @@ export default function MyceliumHub({ session, onLogout }) {
         )}
         {activeView === 'foret' && (
           <VueForet pulse={pulse} onBack={() => setActiveView('dashboard')} />
+        )}
+        {activeView === 'parametres' && (
+          <VueParametres
+            onBack={() => setActiveView('dashboard')}
+            userId={session?.user?.id}
+            canActivatePublic={canActivatePublic}
+            isPublic={isPublic}
+            onToggleForest={async () => {
+              if (!session?.user?.id || !supabase) return;
+              const slug = (session?.user?.user_metadata?.display_name || session?.user?.email || 'initie').replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+              await updateProfile(session.user.id, { is_public: !isPublic, public_constellation: !isPublic, slug: isPublic ? null : (slug || `initie-${session.user.id.slice(0, 8)}`) });
+              addToast(isPublic ? 'Profil masqué de la Forêt.' : 'Profil visible dans la Forêt.');
+              refetchInitiation?.();
+            }}
+            refetch={refetchInitiation}
+          />
+        )}
+        {activeView === 'notifications' && (
+          <VueNotifications onBack={() => setActiveView('dashboard')} />
         )}
         {activeView === 'dashboard' && (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -397,6 +452,26 @@ export default function MyceliumHub({ session, onLogout }) {
                 className="px-4 py-2 rounded-xl bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 font-medium transition"
               >
                 Continuer
+              </button>
+            </motion.div>
+          )}
+
+          {/* Notification Carte Maîtresse débloquée */}
+          {(lastResult?.poleAverages?.length === 7 || profile?.test_mycelium_completed) && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-4 flex items-center justify-between gap-3"
+            >
+              <span className="text-[#F1F1E6]/90">
+                <strong className="accent-color">Votre Carte Maîtresse (L&apos;Inné)</strong> est débloquée.
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveView('deck')}
+                className="px-4 py-2 rounded-xl bg-[var(--accent)]/20 border border-[var(--accent)]/50 accent-color font-medium hover:bg-[var(--accent)]/30 transition"
+              >
+                Voir mon Deck
               </button>
             </motion.div>
           )}
@@ -455,6 +530,29 @@ export default function MyceliumHub({ session, onLogout }) {
                 <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
                   {symbiosePoints} PS
                 </p>
+                {/* Galerie des Sceaux — Hauts Faits de Sève */}
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  <p className="text-[#F1F1E6]/70 text-xs uppercase tracking-wider mb-2">Hauts Faits de Sève</p>
+                  <div className="flex flex-wrap gap-2">
+                    {SEAL_ORDER.map((id) => {
+                      const seal = SEALS_MASTERY[id];
+                      const unlocked = Array.isArray(unlockedSeals) && unlockedSeals.includes(id);
+                      return (
+                        <div
+                          key={id}
+                          className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center text-lg transition-all ${unlocked ? 'opacity-100' : 'opacity-40 grayscale'}`}
+                          style={{
+                            borderColor: unlocked ? (seal?.color || '#D4AF37') : 'rgba(255,255,255,0.2)',
+                            boxShadow: unlocked ? `0 0 12px ${seal?.color || '#D4AF37'}50` : 'none',
+                          }}
+                          title={seal ? `${seal.name} — ${seal.mastery}${unlocked ? ' (débloqué)' : ''}` : id}
+                        >
+                          {unlocked ? '◆' : '◇'}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
                 {/* Barre d'XP de Sève — plus visible */}
                 <div className="mt-3 w-64">
                   <div className="flex justify-between text-[#F1F1E6]/80 text-sm mb-1">

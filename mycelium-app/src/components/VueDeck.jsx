@@ -4,15 +4,17 @@ import MyceliumCard from './MyceliumCard';
 
 /**
  * Mon Deck — Carte Maîtresse (l'Inné) + futur deck de cartes gagnées.
+ * Utilise profile (Supabase) ou lastResult (localStorage/réhydraté) pour afficher la carte.
  */
-export default function VueDeck({ onBack, profile }) {
-  const cardProfile = profile ? {
-    poleAverages: profile.constellation_data?.poleAverages ?? null,
-    totem: profile.totem ?? null,
-    elementPrimordial: profile.element_primordial ?? null,
-    xpSeve: profile.xp_seve ?? 0,
-    initiateName: profile.initiate_name ?? 'Initié',
-    constellationData: profile.constellation_data,
+export default function VueDeck({ onBack, profile, lastResult }) {
+  const poleAverages = profile?.constellation_data?.poleAverages ?? lastResult?.poleAverages ?? null;
+  const cardProfile = (profile || lastResult) ? {
+    poleAverages: Array.isArray(poleAverages) && poleAverages.length === 7 ? poleAverages : null,
+    totem: profile?.totem ?? null,
+    elementPrimordial: profile?.element_primordial ?? null,
+    xpSeve: profile?.xp_seve ?? 0,
+    initiateName: profile?.initiate_name ?? lastResult?.userName ?? 'Initié',
+    constellationData: profile?.constellation_data ?? (lastResult ? { poleAverages: lastResult.poleAverages, hybrid: lastResult.hybrid } : null),
   } : null;
 
   return (

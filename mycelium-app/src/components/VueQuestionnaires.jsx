@@ -67,18 +67,46 @@ export default function VueQuestionnaires({
   onBack,
   setResonanceArchives,
   onNavigateToConstellation,
+  initialStepOverride,
 }) {
   const nextStep = profile ? getNextQuestionnaireStep(profile) : '49racines';
-  const initialStep = nextStep && nextStep !== 'constellation' ? nextStep : '49racines';
-  const [step, setStep] = useState(initialStep);
+  const nextInList = nextStep && ['49racines', 'totem', 'resonance', 'element', 'matrice'].includes(nextStep) ? nextStep : null;
+  const [step, setStep] = useState(initialStepOverride || nextInList || '49racines');
 
   useEffect(() => {
-    if (nextStep && nextStep !== 'constellation') setStep(nextStep);
-  }, [nextStep]);
+    if (initialStepOverride) setStep(initialStepOverride);
+    else if (nextInList) setStep(nextInList);
+    else if (nextStep === 'constellation') setStep('constellation_gate');
+  }, [initialStepOverride, nextInList, nextStep]);
 
   const handleBack = () => onBack();
 
   const renderContent = () => {
+    if (step === 'constellation_gate') {
+      return (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-6">
+          <h1 className="font-serif text-2xl font-bold accent-color">Parcours d&apos;initiation</h1>
+          <div className="rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-6 space-y-4">
+            <p className="text-[#F1F1E6]/90">
+              Vous avez accompli les 49 Racines et Mon Totem. La prochaine étape est <strong className="accent-color">L&apos;Observatoire de la Constellation</strong>.
+            </p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => onNavigateToConstellation?.()}
+                className="px-4 py-2 rounded-xl bg-[var(--accent)]/30 hover:bg-[var(--accent)]/50 text-[#F1F1E6] font-medium transition"
+              >
+                Aller à l&apos;Observatoire
+              </button>
+              <button type="button" onClick={handleBack} className="px-4 py-2 rounded-xl border border-[var(--accent)]/40 text-[#F1F1E6]/80 hover:bg-white/5 transition">
+                ← Tableau de bord
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      );
+    }
+
     const locked = !isStepUnlocked(profile, step);
     const prevStep = QUESTIONNAIRE_STEPS[QUESTIONNAIRE_STEPS.findIndex((s) => s.id === step) - 1];
     const prerequisiteLabel = prevStep ? STEP_LABELS[prevStep.id] : STEP_LABELS['49racines'];

@@ -17,7 +17,7 @@ export function useInitiationStatus(userId) {
     setError(null);
     supabase
       .from('profiles')
-      .select('initiation_step, test_mycelium_completed, test_totem_completed, is_public, public_constellation, slug, xp_seve, element_primordial, totem, constellation_data, constellation_result, symbiose_points, initiate_name, resonance_month_year, cognitive_title')
+      .select('initiation_step, test_mycelium_completed, test_totem_completed, is_public, public_constellation, slug, xp_seve, element_primordial, totem, constellation_data, constellation_result, symbiose_points, initiate_name, resonance_month_year, cognitive_title, has_completed_onboarding, unlocked_seals')
       .eq('id', userId)
       .single()
       .then(({ data, error: e }) => {
@@ -59,6 +59,8 @@ export function useInitiationStatus(userId) {
     constellationData: profile?.constellation_data ?? null,
     constellationResult: profile?.constellation_result ?? null,
     symbiosePoints: Math.max(0, Number(profile?.symbiose_points) || 0),
+    hasCompletedOnboarding: profile?.has_completed_onboarding === true,
+    unlockedSeals: Array.isArray(profile?.unlocked_seals) ? profile.unlocked_seals : [],
     refetch: fetchProfile,
   };
 }

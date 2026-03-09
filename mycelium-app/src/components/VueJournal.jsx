@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Sparkles, Archive, PenLine, Trash2, Droplets, Flame, Swords, Brain, Leaf, Wind, Mountain, Sparkle } from 'lucide-react';
 import { detectElementFromText } from '../data/sentimentAnalyzer';
 import { getQuestForElement } from '../data/quests';
-import { saveJournalEntry, getJournalEntries, updateJournalEntry, deleteJournalEntry, completeJournalQuest } from '../services/myceliumSave';
+import { getQuestForDay } from '../data/dailyQuests';
+import { saveJournalEntry, getJournalEntries, updateJournalEntry, deleteJournalEntry, completeJournalQuest, getTodayDailyLog, getOrCreateDailyLog, completeDailyQuest } from '../services/myceliumSave';
 
 const MIN_CHARS_FOR_QUEST = 100;
 
@@ -22,7 +23,7 @@ export const JOURNAL_EMOTIONS = [
  * Le Sanctuaire — Journal de Sève.
  * CRUD complet, sélecteur d'émotion, cartes glassmorphism, tri et inversion d'ordre.
  */
-export default function VueJournal({ onBack, userId, initiateName, onQuestComplete }) {
+export default function VueJournal({ onBack, userId, initiateName, poleAverages, onQuestComplete }) {
   const [text, setText] = useState('');
   const [primaryEmotion, setPrimaryEmotion] = useState(null);
   const [detected, setDetected] = useState(null);
@@ -35,6 +36,18 @@ export default function VueJournal({ onBack, userId, initiateName, onQuestComple
   const [reverseOrder, setReverseOrder] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [savedGlow, setSavedGlow] = useState(false);
+  const [dailyLog, setDailyLog] = useState(null);
+  const [dailyQuestCompleting, setDailyQuestCompleting] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      const q = getQuestForDay(poleAverages);
+      let log = await getTodayDailyLog(userId);
+      if (!log && q) log = await getOrCreateDailyLog(userId, q);
+      setDailyLog(log);
+    })();
+  }, [userId, poleAverages]);
 
   useEffect(() => {
     const d = detectElementFromText(text);
@@ -103,6 +116,16 @@ export default function VueJournal({ onBack, userId, initiateName, onQuestComple
     }
   };
 
+  const handleDailyMissionDone = async () => {
+    if (!userId || dailyLog?.is_quest_completed || dailyQuestCompleting) return;
+    setDailyQuestCompleting(true);
+    const result = await completeDailyQuest(userId);
+    const updated = result?.log ?? result;
+    setDailyLog(updated);
+    onQuestComplete?.();
+    setDailyQuestCompleting(false);
+  };
+
   const handleQuestDone = async (entryId) => {
     if (!userId || !entryId) return;
     await completeJournalQuest(userId, entryId);
@@ -129,6 +152,28 @@ export default function VueJournal({ onBack, userId, initiateName, onQuestComple
       <p className="text-[#F1F1E6]/60 text-sm mb-6">
         Quelle sève coule en vous aujourd&apos;hui ? Choisissez votre essence du moment, puis écrivez.
       </p>
+
+      {/* Mission du jour — encadré bioluminescent */}
+      {dailyLog && (
+        <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 backdrop-blur-xl p-4" style={{ boxShadow: '0 0 30px rgba(52,211,153,0.12)' }}>
+          <p className="text-emerald-400/90 text-xs uppercase tracking-wider mb-2">Mission de Sève du jour</p>
+          <p className="text-[#F1F1E6]/95 text-sm mb-3">{dailyLog.task_text}</p>
+          {dailyLog.is_quest_completed ? (
+            <p className="text-emerald-400 text-xs flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4" /> Mission accomplie. +50 XP, +20 PS.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleDailyMissionDone}
+              disabled={dailyQuestCompleting}
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/35 transition disabled:opacity-60"
+            >
+              {dailyQuestCompleting ? 'Enregistrement…' : 'Mission accomplie'}
+            </button>
+          )}
+        </div>
+      )}
 
       {!showArchives ? (
         <>
