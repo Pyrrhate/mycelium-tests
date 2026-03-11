@@ -61,6 +61,35 @@
             </button>
           </div>
         </section>
+
+        <!-- Section 3 : VORTEX-SHOP - The Accumulation Engine -->
+        <section class="rounded-2xl border border-[#FF6600]/40 bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] shadow-lg overflow-hidden">
+          <div class="p-6 md:p-8 border-b border-[#FF6600]/30">
+            <div class="flex items-center gap-3 mb-2">
+              <span class="text-3xl animate-bounce">🛒</span>
+              <h2 class="text-2xl font-serif font-bold text-[#FF6600]">VORTEX-SHOP</h2>
+              <span class="px-2 py-1 text-xs font-bold bg-red-600 text-white rounded animate-pulse">-98%</span>
+            </div>
+            <p class="text-white/80 text-sm">L'Engin d'Accumulation — Simulation satirique d'un site e-commerce manipulateur (style Temu/Alibaba).</p>
+            <p class="text-[#FF6600]/70 text-xs mt-2 italic">Dark patterns, urgence artificielle, et spirale de l'accumulation.</p>
+          </div>
+          <div class="p-6 md:p-8 relative overflow-hidden">
+            <div class="absolute top-2 right-2 text-xs text-red-500 font-mono animate-pulse">⚡ OFFRE LIMITÉE</div>
+            <button data-test="vortex" class="test-card w-full p-5 md:p-6 rounded-xl bg-gradient-to-r from-[#FF6600]/20 to-[#ff8533]/20 hover:from-[#FF6600]/30 hover:to-[#ff8533]/30 border-2 border-[#FF6600]/50 hover:border-[#FF6600] shadow-lg hover:shadow-[#FF6600]/30 transition-all duration-200 text-left group">
+              <div class="flex items-center justify-between">
+                <span class="text-base md:text-lg font-bold text-[#FF6600] block">🔥 Entrer dans le Vortex 🔥</span>
+                <span class="text-xs font-mono text-red-400 group-hover:animate-pulse">3:00</span>
+              </div>
+              <p class="mt-1.5 text-white/70 text-sm">Commencez avec 1 article, finissez avec 47. Les 7 péchés du commerce digital.</p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <span class="px-2 py-1 text-[10px] font-bold bg-green-600/30 text-green-400 rounded">LIVRAISON GRATUITE*</span>
+                <span class="px-2 py-1 text-[10px] font-bold bg-yellow-600/30 text-yellow-400 rounded">3 CADEAUX OFFERTS</span>
+                <span class="px-2 py-1 text-[10px] font-bold bg-red-600/30 text-red-400 rounded">STOCK LIMITÉ</span>
+              </div>
+            </button>
+            <p class="text-white/30 text-[10px] mt-4">* Conditions : dépenser au moins 5€ • Les "économies" sont fictives • Simulation éducative</p>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -146,6 +175,11 @@
       </div>
     </div>
 
+    <!-- VORTEX-SHOP : The Accumulation Engine -->
+    <div id="view-vortex" class="hidden min-h-screen relative">
+      <!-- Le contenu est généré dynamiquement par vortex.js -->
+    </div>
+
     <!-- Barre fixe : Retour (en bas à gauche) -->
     <div id="global-nav" class="fixed bottom-4 left-4 z-50 flex flex-col gap-2 opacity-0 pointer-events-none transition-opacity duration-300">
       <button id="btn-back" class="px-4 py-2 rounded-lg bg-black/60 hover:bg-black/80 text-white text-sm font-medium backdrop-blur">
@@ -173,5 +207,6 @@
   <script src="reflections-49.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
+  <script src="vortex.js"></script>
 </body>
 </html>

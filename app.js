@@ -367,13 +367,17 @@
     const selector = $('#view-selector');
     const test = $('#view-test');
     const sg = $('#view-self-growth');
+    const vortex = $('#view-vortex');
     const nav = $('#global-nav');
-    [selector, test, sg].forEach(v => { if (v) v.classList.add('hidden'); });
+    [selector, test, sg, vortex].forEach(v => { if (v) v.classList.add('hidden'); });
     nav.classList.add('opacity-0', 'pointer-events-none');
     if (name === 'selector') {
       selector.classList.remove('hidden');
     } else if (name === 'self-growth') {
       if (sg) sg.classList.remove('hidden');
+      nav.classList.remove('opacity-0', 'pointer-events-none');
+    } else if (name === 'vortex') {
+      if (vortex) vortex.classList.remove('hidden');
       nav.classList.remove('opacity-0', 'pointer-events-none');
     } else {
       test.classList.remove('hidden');
@@ -1461,6 +1465,8 @@
       }
     });
   }
+
+  window.showView = showView;
 
   init();
 })();
