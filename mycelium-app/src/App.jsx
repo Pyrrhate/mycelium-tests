@@ -45,7 +45,7 @@ function App() {
   };
 
   if (publicSlug) {
-    return <ProfilePublic username={publicSlug} onBack={handleProfileBack} />;
+    return <ProfilePublic username={publicSlug} onBack={handleProfileBack} session={session} />;
   }
 
   if (sessionLoading) {

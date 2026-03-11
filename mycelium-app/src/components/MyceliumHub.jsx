@@ -25,6 +25,7 @@ import VueQuestionnaires from './VueQuestionnaires';
 import ConstellationView from './ConstellationView';
 import VueDeck from './VueDeck';
 import VueJournal from './VueJournal';
+import MagicJournal from './MagicJournal';
 import VueCombat from './VueCombat';
 import VueParametres from './VueParametres';
 import VueNotifications from './VueNotifications';
@@ -203,17 +204,19 @@ export default function MyceliumHub({ session, onLogout }) {
     addToast('Vous avez quitté le Réseau.');
   };
 
+  // MVP Navigation — modules complexes commentés pour focus sur les piliers essentiels
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
     { id: 'profil', icon: User, label: 'Mon profil' },
     { id: 'questionnaires', icon: BookOpen, label: 'Parcours d\'initiation' },
-    { id: 'constellation', icon: Star, label: 'L\'Observatoire de la Constellation' },
-    { id: 'eveil', icon: Activity, label: 'Éveil Quotidien' },
-    { id: 'journal', icon: ScrollText, label: 'Journal de Sève' },
-    { id: 'deck', icon: Layers, label: 'Mon Deck' },
-    { id: 'combat', icon: Swords, label: 'Le Duel' },
-    { id: 'foret', icon: Users, label: 'La Forêt' },
-    { id: 'notifications', icon: Bell, label: 'Notifications' },
+    { id: 'journal', icon: ScrollText, label: 'Le Journal Magique' },
+    // ——— Modules désactivés pour le MVP ———
+    // { id: 'constellation', icon: Star, label: 'L\'Observatoire de la Constellation' },
+    // { id: 'eveil', icon: Activity, label: 'Éveil Quotidien' },
+    // { id: 'deck', icon: Layers, label: 'Mon Deck' },
+    // { id: 'combat', icon: Swords, label: 'Le Duel' },
+    // { id: 'foret', icon: Users, label: 'La Forêt' },
+    // { id: 'notifications', icon: Bell, label: 'Notifications' },
     { id: 'parametres', icon: Settings, label: 'Paramètres' },
   ];
 
@@ -391,12 +394,10 @@ export default function MyceliumHub({ session, onLogout }) {
           <VueDeck onBack={() => setActiveView('dashboard')} profile={profile} lastResult={lastResult} />
         )}
         {activeView === 'journal' && (
-          <VueJournal
+          <MagicJournal
             onBack={() => setActiveView('dashboard')}
             userId={session?.user?.id}
             initiateName={profile?.initiate_name || session?.user?.user_metadata?.display_name || 'Initié'}
-            poleAverages={profile?.constellation_data?.poleAverages ?? lastResult?.poleAverages}
-            onQuestComplete={refetchInitiation}
           />
         )}
         {activeView === 'combat' && (

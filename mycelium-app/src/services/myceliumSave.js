@@ -351,13 +351,15 @@ export async function deleteJournalEntry(userId, entryId) {
 
 /**
  * Liste des entrées du journal (archives), plus récentes en premier.
+ * Inclut les colonnes IA et les métadonnées de tri (is_pinned, custom_order).
  */
 export async function getJournalEntries(userId, limit = 50) {
   if (!supabase || !userId) return [];
   const { data } = await supabase
     .from(TABLE_USER_JOURNAL)
-    .select('id, entry_text, detected_element, assigned_quest_id, is_completed, completed_at, created_at')
+    .select('id, entry_text, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, created_at')
     .eq('user_id', userId)
+    .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
   return data ?? [];
@@ -541,4 +543,95 @@ export async function getDailyLogsForCalendar(userId, year, month) {
     .gte('log_date', start)
     .lte('log_date', end);
   return data ?? [];
+}
+
+// ========================================================================
+// JOURNAL COMPAGNON — Mémoire courte et analyse IA contextuelle
+// ========================================================================
+
+/**
+ * Récupère les N dernières notes du journal (mémoire courte).
+ * Utilisé pour donner du contexte à l'IA avant l'analyse.
+ * @param {string} userId
+ * @param {number} limit - Nombre de notes à récupérer (défaut: 3)
+ * @returns {Promise<Array<{ entry_text: string, ai_element: string, created_at: string }>>}
+ */
+export async function getPastJournalEntries(userId, limit = 3) {
+  if (!supabase || !userId) return [];
+  const { data, error } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .select('id, entry_text, ai_element, ai_quote, ai_reflection, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn('Mycélium getPastJournalEntries:', error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
+/**
+ * Sauvegarde une entrée du Journal Compagnon avec la réponse IA complète.
+ * @param {string} userId
+ * @param {object} params
+ * @param {string} params.entry_text - Le texte de l'utilisateur
+ * @param {object} params.aiResponse - La réponse de Claude { element, quote, reflection, insight, quest }
+ * @returns {Promise<object|null>} L'entrée créée ou null si erreur
+ */
+export async function saveCompanionJournalEntry(userId, { entry_text, aiResponse }) {
+  if (!supabase || !userId || !entry_text?.trim()) return null;
+
+  const { data, error } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .insert({
+      user_id: userId,
+      entry_text: entry_text.trim(),
+      detected_element: aiResponse?.element || null,
+      ai_element: aiResponse?.element || null,
+      ai_quote: aiResponse?.quote || null,
+      ai_reflection: aiResponse?.reflection || null,
+      ai_insight: aiResponse?.insight || null,
+      ai_quest: aiResponse?.quest || null,
+      analysis_completed_at: new Date().toISOString(),
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    console.warn('Mycélium saveCompanionJournalEntry:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Appelle l'Edge Function analyze-journal avec le contexte des notes passées.
+ * Fallback sur le mock si l'Edge Function échoue.
+ * @param {string} currentEntry - La note actuelle
+ * @param {Array} pastEntries - Les notes passées (mémoire courte)
+ * @returns {Promise<object>} La réponse IA { element, quote, reflection }
+ */
+export async function analyzeJournalWithContext(currentEntry, pastEntries = []) {
+  if (!supabase) {
+    throw new Error('Supabase non configuré');
+  }
+
+  const { data, error } = await supabase.functions.invoke('analyze-journal', {
+    body: {
+      current_entry: currentEntry,
+      past_entries: pastEntries.map(e => ({
+        text: e.entry_text,
+        element: e.ai_element,
+        date: e.created_at,
+      })),
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Erreur Edge Function');
+  }
+
+  return data;
 }
