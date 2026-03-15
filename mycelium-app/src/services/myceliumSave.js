@@ -357,7 +357,7 @@ export async function getJournalEntries(userId, limit = 50) {
   if (!supabase || !userId) return [];
   const { data } = await supabase
     .from(TABLE_USER_JOURNAL)
-    .select('id, entry_text, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, created_at')
+    .select('id, entry_text, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, media_urls, mycelium_link, linked_entry_id, created_at')
     .eq('user_id', userId)
     .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
@@ -593,6 +593,7 @@ export async function saveCompanionJournalEntry(userId, { entry_text, aiResponse
       ai_reflection: aiResponse?.reflection || null,
       ai_insight: aiResponse?.insight || null,
       ai_quest: aiResponse?.quest || null,
+      mycelium_link: aiResponse?.mycelium_link || null,
       analysis_completed_at: new Date().toISOString(),
     })
     .select('*')
@@ -631,6 +632,165 @@ export async function analyzeJournalWithContext(currentEntry, pastEntries = []) 
 
   if (error) {
     throw new Error(error.message || 'Erreur Edge Function');
+  }
+
+  return data;
+}
+
+// ========================================================================
+// JOURNAL AUGMENTÉ — Multimédia, Timeline, Liens Organiques
+// ========================================================================
+
+const STORAGE_BUCKET = 'journal_media';
+
+/**
+ * Upload un fichier média vers Supabase Storage.
+ * @param {string} userId - ID de l'utilisateur
+ * @param {string} entryId - ID de la note (ou 'temp' si pas encore créée)
+ * @param {File} file - Fichier à uploader
+ * @returns {Promise<{url: string, type: string, thumbnail?: string}|null>}
+ */
+export async function uploadJournalMedia(userId, entryId, file) {
+  if (!supabase || !userId || !file) return null;
+
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}.${fileExt}`;
+  const filePath = `${userId}/${entryId}/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.warn('Upload error:', uploadError.message);
+    return null;
+  }
+
+  const { data: urlData } = supabase.storage
+    .from(STORAGE_BUCKET)
+    .getPublicUrl(filePath);
+
+  const mediaType = file.type.startsWith('image/') ? 'image'
+    : file.type.startsWith('audio/') ? 'audio'
+    : file.type.startsWith('video/') ? 'video'
+    : 'file';
+
+  return {
+    url: urlData.publicUrl,
+    type: mediaType,
+    name: file.name,
+    path: filePath,
+  };
+}
+
+/**
+ * Supprime un fichier média de Supabase Storage.
+ */
+export async function deleteJournalMedia(filePath) {
+  if (!supabase || !filePath) return false;
+
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .remove([filePath]);
+
+  return !error;
+}
+
+/**
+ * Échantillonnage intelligent des notes passées pour le contexte IA.
+ * Retourne : note d'hier + 2 notes aléatoires avec le même élément.
+ * @param {string} userId
+ * @param {string} currentElement - Élément détecté dans le texte actuel (optionnel)
+ * @returns {Promise<Array>} Notes sélectionnées pour le contexte
+ */
+export async function getSmartContextEntries(userId, currentElement = null) {
+  if (!supabase || !userId) return [];
+
+  const contextEntries = [];
+
+  // 1. Récupérer la note d'hier
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStart = yesterday.toISOString().split('T')[0];
+
+  const { data: yesterdayNotes } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .select('id, entry_text, ai_element, ai_quote, created_at')
+    .eq('user_id', userId)
+    .gte('created_at', `${yesterdayStart}T00:00:00`)
+    .lt('created_at', `${yesterdayStart}T23:59:59`)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (yesterdayNotes?.length > 0) {
+    contextEntries.push(yesterdayNotes[0]);
+  }
+
+  // 2. Si un élément est détecté, chercher 2 notes passées avec le même élément
+  if (currentElement) {
+    const { data: sameElementNotes } = await supabase
+      .from(TABLE_USER_JOURNAL)
+      .select('id, entry_text, ai_element, ai_quote, created_at')
+      .eq('user_id', userId)
+      .eq('ai_element', currentElement)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (sameElementNotes?.length > 0) {
+      // Sélectionner 2 notes aléatoires parmi celles trouvées
+      const shuffled = sameElementNotes
+        .filter(n => !contextEntries.find(c => c.id === n.id))
+        .sort(() => 0.5 - Math.random());
+      contextEntries.push(...shuffled.slice(0, 2));
+    }
+  }
+
+  // 3. Compléter avec des notes aléatoires si nécessaire
+  if (contextEntries.length < 3) {
+    const { data: randomNotes } = await supabase
+      .from(TABLE_USER_JOURNAL)
+      .select('id, entry_text, ai_element, ai_quote, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (randomNotes?.length > 0) {
+      const remaining = randomNotes
+        .filter(n => !contextEntries.find(c => c.id === n.id))
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 3 - contextEntries.length);
+      contextEntries.push(...remaining);
+    }
+  }
+
+  return contextEntries.slice(0, 3);
+}
+
+/**
+ * Met à jour une note avec le lien mycélien et les médias.
+ */
+export async function updateJournalWithMedia(userId, entryId, { media_urls, mycelium_link, linked_entry_id }) {
+  if (!supabase || !userId || !entryId) return null;
+
+  const payload = {};
+  if (media_urls !== undefined) payload.media_urls = media_urls;
+  if (mycelium_link !== undefined) payload.mycelium_link = mycelium_link;
+  if (linked_entry_id !== undefined) payload.linked_entry_id = linked_entry_id;
+
+  const { data, error } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .update(payload)
+    .eq('id', entryId)
+    .eq('user_id', userId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.warn('updateJournalWithMedia error:', error.message);
+    return null;
   }
 
   return data;

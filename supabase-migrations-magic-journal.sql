@@ -32,10 +32,42 @@ ALTER TABLE public.user_journal
 COMMENT ON COLUMN public.user_journal.custom_order IS 'Ordre personnalisé pour le tri (drag & drop)';
 COMMENT ON COLUMN public.user_journal.is_pinned IS 'Note épinglée en haut de la liste';
 
+-- Colonnes pour le support multimédia et les liens mycéliens
+ALTER TABLE public.user_journal
+  ADD COLUMN IF NOT EXISTS media_urls jsonb DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS mycelium_link text,
+  ADD COLUMN IF NOT EXISTS linked_entry_id uuid REFERENCES public.user_journal(id);
+
+COMMENT ON COLUMN public.user_journal.media_urls IS 'URLs des médias attachés [{type, url, thumbnail}]';
+COMMENT ON COLUMN public.user_journal.mycelium_link IS 'Réflexion comparative avec une note passée (générée par Claude)';
+COMMENT ON COLUMN public.user_journal.linked_entry_id IS 'ID de la note passée liée par le Mycélium';
+
 -- Index optimisés pour les requêtes fréquentes
 CREATE INDEX IF NOT EXISTS idx_user_journal_ai_element ON public.user_journal(user_id, ai_element);
 CREATE INDEX IF NOT EXISTS idx_user_journal_user_created ON public.user_journal(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_journal_custom_order ON public.user_journal(user_id, is_pinned DESC, custom_order ASC);
+
+-- ============================================================================
+-- SECTION 4 : SUPABASE STORAGE BUCKET POUR LES MÉDIAS
+-- ============================================================================
+
+-- Créer le bucket pour les médias du journal (à exécuter via Dashboard ou CLI)
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('journal_media', 'journal_media', false);
+
+-- Politique RLS pour le bucket (utilisateurs peuvent gérer leurs propres fichiers)
+-- Le path doit être structuré comme : {user_id}/{entry_id}/{filename}
+
+-- CREATE POLICY "Users can upload own media"
+-- ON storage.objects FOR INSERT
+-- WITH CHECK (bucket_id = 'journal_media' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- CREATE POLICY "Users can view own media"
+-- ON storage.objects FOR SELECT
+-- USING (bucket_id = 'journal_media' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- CREATE POLICY "Users can delete own media"
+-- ON storage.objects FOR DELETE
+-- USING (bucket_id = 'journal_media' AND auth.uid()::text = (storage.foldername(name))[1]);
 
 -- ============================================================================
 -- SECTION 2 : SÉCURITÉ RLS (Row Level Security) - CRITIQUE

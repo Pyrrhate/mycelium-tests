@@ -30,6 +30,7 @@ import VueCombat from './VueCombat';
 import VueParametres from './VueParametres';
 import VueNotifications from './VueNotifications';
 import VueProfil from './VueProfil';
+import InitiationChat from './InitiationChat';
 import OnboardingTour from './OnboardingTour';
 import ConstellationCard from './ConstellationCard';
 import AvatarExplicationsCard from './AvatarExplicationsCard';
@@ -208,7 +209,8 @@ export default function MyceliumHub({ session, onLogout }) {
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
     { id: 'profil', icon: User, label: 'Mon profil' },
-    { id: 'questionnaires', icon: BookOpen, label: 'Parcours d\'initiation' },
+    { id: 'initiation', icon: BookOpen, label: 'Initiation Anima' },
+    { id: 'questionnaires', icon: BookOpen, label: 'Parcours classique' },
     { id: 'journal', icon: ScrollText, label: 'Le Journal Magique' },
     // ——— Modules désactivés pour le MVP ———
     // { id: 'constellation', icon: Star, label: 'L\'Observatoire de la Constellation' },
@@ -339,6 +341,16 @@ export default function MyceliumHub({ session, onLogout }) {
 
       {/* Contenu principal */}
       <main className="flex-1 overflow-auto p-6 pt-4 md:pt-6">
+        {activeView === 'initiation' && (
+          <InitiationChat
+            userId={session?.user?.id}
+            onComplete={(result) => {
+              refetchInitiation?.();
+              setActiveView('dashboard');
+              addToast('Initiation complétée ! Votre profil Anima a été révélé.');
+            }}
+          />
+        )}
         {activeView === 'questionnaires' && (
           <VueQuestionnaires
             profile={profile}
