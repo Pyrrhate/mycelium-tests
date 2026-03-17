@@ -1,17 +1,28 @@
 @import "tailwindcss";
 
-/* Couleur d'accent (Élément Primordial) — surchargée par JS depuis le profil */
+/* Design system : mode sombre épuré (Smart Journal) + fallback accent */
 :root {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', 'Roboto', system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #F1F1E6;
-  background-color: #070B0A;
+  color: #e5e5e5;
+  background-color: #111111;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   --accent: #D4AF37;
   --accent-rgb: 212, 175, 55;
+  /* Smart Journal : fond et bordures neutres */
+  --sj-bg: #1a1a1a;
+  --sj-bg-elevated: #222222;
+  --sj-border: 1px solid rgb(38 38 38);
+}
+
+/* Zone Smart Journal : fond gris foncé, bordures fines */
+.smart-journal-page {
+  background-color: var(--sj-bg);
+  border: var(--sj-border);
+  color: #e5e5e5;
 }
 
 /* Utiliser l'accent (Élément Primordial) pour liens et états actifs */

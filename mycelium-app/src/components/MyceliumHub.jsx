@@ -9,9 +9,9 @@ import {
   Activity,
   Droplets,
 } from 'lucide-react';
-import { PawPrint, Moon, Flame, Brain, Users, Star, Layers, ScrollText, Swords, Menu, X, Settings, Bell } from 'lucide-react';
+import { PawPrint, Moon, Flame, Brain, Users, Star, Layers, ScrollText, Swords, Menu, X, Settings, Bell, FolderOpen, Plus, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { save49Result, updateProfile, getMaison } from '../services/myceliumSave';
+import { save49Result, updateProfile, getMaison, getProjects, createProject, updateProject, deleteProject } from '../services/myceliumSave';
 import { getResonanceArchives, getActiveForestAwakening } from '../services/myceliumSave';
 import { useInitiationStatus } from '../hooks/useInitiationStatus';
 import { getNextQuestionnaireStep, STEP_LABELS, isStepUnlocked } from '../hooks/useNextStep';
@@ -25,7 +25,8 @@ import VueQuestionnaires from './VueQuestionnaires';
 import ConstellationView from './ConstellationView';
 import VueDeck from './VueDeck';
 import VueJournal from './VueJournal';
-import MagicJournal from './MagicJournal';
+import SmartJournal from './SmartJournal';
+import ExplorerView from './ExplorerView';
 import VueCombat from './VueCombat';
 import VueParametres from './VueParametres';
 import VueNotifications from './VueNotifications';
@@ -105,8 +106,13 @@ export default function MyceliumHub({ session, onLogout }) {
   const [questionnaireStepOverride, setQuestionnaireStepOverride] = useState(null);
   const [bioDraft, setBioDraft] = useState('');
   const [bioSaving, setBioSaving] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [projectEditId, setProjectEditId] = useState(null);
+  const [projectEditName, setProjectEditName] = useState('');
+  const [newProjectName, setNewProjectName] = useState('');
+  const [addingProject, setAddingProject] = useState(false);
 
-  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, constellationResult, symbiosePoints, profile, loading: initiationLoading, refetch: refetchInitiation, hasCompletedOnboarding, unlockedSeals, narrativeRoots } = useInitiationStatus(session?.user?.id);
+  const { canActivatePublic, isPublic, xpSeve, elementPrimordial, totem: profileTotem, constellationData, constellationResult, symbiosePoints, profile, loading: initiationLoading, refetch: refetchInitiation, hasCompletedOnboarding, unlockedSeals, narrativeRoots, aiCredits } = useInitiationStatus(session?.user?.id);
 
   useEffect(() => {
     setBioDraft(narrativeRoots ?? '');
@@ -115,6 +121,43 @@ export default function MyceliumHub({ session, onLogout }) {
   useEffect(() => {
     if (activeView !== 'questionnaires') setQuestionnaireStepOverride(null);
   }, [activeView]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    getProjects(session.user.id).then(setProjects);
+  }, [session?.user?.id]);
+
+  const handleCreateProject = async () => {
+    if (!session?.user?.id || !newProjectName.trim()) return;
+    const p = await createProject(session.user.id, { name: newProjectName.trim() });
+    if (p) {
+      setProjects((prev) => [...prev, p]);
+      setNewProjectName('');
+      setAddingProject(false);
+      addToast('Projet créé.');
+    }
+  };
+
+  const handleRenameProject = async (id, name) => {
+    if (!session?.user?.id || !name?.trim()) return;
+    const updated = await updateProject(session.user.id, id, { name: name.trim() });
+    if (updated) {
+      setProjects((prev) => prev.map((x) => (x.id === id ? updated : x)));
+      setProjectEditId(null);
+      setProjectEditName('');
+      addToast('Projet renommé.');
+    }
+  };
+
+  const handleDeleteProject = async (id) => {
+    if (!session?.user?.id) return;
+    if (!window.confirm('Supprimer ce projet ? Les notes ne seront pas supprimées.')) return;
+    const ok = await deleteProject(session.user.id, id);
+    if (ok) {
+      setProjects((prev) => prev.filter((x) => x.id !== id));
+      addToast('Projet supprimé.');
+    }
+  };
 
   const addToast = (msg, variant = 'success') => {
     const id = Math.random().toString(36).slice(2);
@@ -205,10 +248,10 @@ export default function MyceliumHub({ session, onLogout }) {
     addToast('Vous avez quitté le Réseau.');
   };
 
-  // MVP Navigation — modules complexes commentés pour focus sur les piliers essentiels
+  // MVP Navigation — Initiation Anima désactivée, Smart Journal par défaut
   const navItems = [
-    { id: 'initiation', icon: BookOpen, label: 'Initiation Anima' },
-    { id: 'journal', icon: ScrollText, label: 'Le Journal Magique' },
+    { id: 'journal', icon: ScrollText, label: 'Smart Journal' },
+    { id: 'explorer', icon: FolderOpen, label: 'Explorateur' },
     // ——— Modules désactivés pour le MVP ———
     // { id: 'constellation', icon: Star, label: 'L\'Observatoire de la Constellation' },
     // { id: 'eveil', icon: Activity, label: 'Éveil Quotidien' },
@@ -223,7 +266,7 @@ export default function MyceliumHub({ session, onLogout }) {
   const xpProgress = getXpProgressForNextRank(xpSeve);
 
   const onboardingDoneLocal = typeof localStorage !== 'undefined' && !!localStorage.getItem('mycelium_onboarding_done');
-  const showOnboarding = session?.user && !initiationLoading && !hasCompletedOnboarding && !onboardingDoneLocal;
+  const showOnboarding = false; // Initiation Anima désactivée : on arrive directement sur le Smart Journal
 
   return (
     <div className={`min-h-screen bg-[#070B0A] text-[#F1F1E6] flex flex-col md:flex-row ${forestAwakening ? 'forest-awakening' : ''}`}>
@@ -307,6 +350,57 @@ export default function MyceliumHub({ session, onLogout }) {
             <span className="text-xs leading-tight">{item.label}</span>
           </motion.button>
         ))}
+        <div className="mt-4 pt-4 border-t border-white/10 px-2">
+          <p className="text-[#F1F1E6]/50 text-xs uppercase tracking-wider mb-2">Projets</p>
+          {projects.map((p) => (
+            <div key={p.id} className="flex items-center gap-1 group mb-1">
+              {projectEditId === p.id ? (
+                <>
+                  <input
+                    type="text"
+                    value={projectEditName}
+                    onChange={(e) => setProjectEditName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleRenameProject(p.id, projectEditName)}
+                    className="flex-1 min-w-0 px-2 py-1 rounded bg-white/10 text-[#F1F1E6] text-xs"
+                    autoFocus
+                  />
+                  <button type="button" onClick={() => handleRenameProject(p.id, projectEditName)} className="p-1 text-emerald-400" title="Valider">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 truncate text-xs text-[#F1F1E6]/80 pl-1 border-l-2" style={{ borderColor: p.color || '#6B7280' }}>{p.name}</span>
+                  <button type="button" onClick={() => { setProjectEditId(p.id); setProjectEditName(p.name); }} className="p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-[#F1F1E6]">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button type="button" onClick={() => handleDeleteProject(p.id)} className="p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+          {addingProject ? (
+            <div className="flex items-center gap-1 mt-1">
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreateProject(); if (e.key === 'Escape') setAddingProject(false); }}
+                placeholder="Nom du projet"
+                className="flex-1 min-w-0 px-2 py-1 rounded bg-white/10 text-[#F1F1E6] text-xs placeholder-[#F1F1E6]/40"
+                autoFocus
+              />
+              <button type="button" onClick={handleCreateProject} className="p-1 text-emerald-400"><Plus className="w-4 h-4" /></button>
+              <button type="button" onClick={() => { setAddingProject(false); setNewProjectName(''); }} className="p-1 text-gray-400"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setAddingProject(true)} className="flex items-center gap-1.5 mt-1 text-xs text-[#F1F1E6]/50 hover:text-[var(--accent)]">
+              <Plus className="w-3.5 h-3.5" /> Nouveau projet
+            </button>
+          )}
+        </div>
         <div className="mt-auto">
           <button
             onClick={handleLogout}
@@ -386,10 +480,19 @@ export default function MyceliumHub({ session, onLogout }) {
           <VueDeck onBack={() => setActiveView('dashboard')} profile={profile} lastResult={lastResult} />
         )}
         {activeView === 'journal' && (
-          <MagicJournal
+          <SmartJournal
             onBack={() => setActiveView('dashboard')}
             userId={session?.user?.id}
-            initiateName={profile?.initiate_name || session?.user?.user_metadata?.display_name || 'Initié'}
+            profile={profile}
+            aiCredits={aiCredits ?? 15}
+            onCreditsRefetch={refetchInitiation}
+          />
+        )}
+        {activeView === 'explorer' && (
+          <ExplorerView
+            userId={session?.user?.id}
+            projects={projects}
+            onBack={() => setActiveView('dashboard')}
           />
         )}
         {activeView === 'combat' && (
@@ -579,6 +682,9 @@ export default function MyceliumHub({ session, onLogout }) {
                 )}
                 <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
                   {symbiosePoints} PS
+                </p>
+                <p className="mt-2 inline-block px-3 py-1 rounded-lg bg-gray-500/15 border border-gray-500/30 text-[#F1F1E6]/80 text-xs font-medium">
+                  ✨ {aiCredits ?? 15} crédits IA restants
                 </p>
                 {/* Galerie des Sceaux — Hauts Faits de Sève */}
                 <div className="mt-4 pt-4 border-t border-white/10">

@@ -12,6 +12,7 @@ const TABLE_INTELLIGENCE_MATRIX = 'intelligence_matrix';
 const TABLE_MATCH_HISTORY = 'match_history';
 const TABLE_USER_JOURNAL = 'user_journal';
 const TABLE_DAILY_LOGS = 'daily_logs';
+const TABLE_PROJECTS = 'projects';
 const XP_RESONANCE = 400;
 const XP_QUEST_DAILY = 50;
 const PS_QUEST_DAILY = 20;
@@ -317,20 +318,23 @@ export async function saveJournalEntry(userId, { entry_text, detected_element, a
 /**
  * Met à jour une entrée du journal (texte et/ou émotion).
  */
-export async function updateJournalEntry(userId, entryId, { entry_text, detected_element, primary_emotion }) {
+export async function updateJournalEntry(userId, entryId, { entry_text, detected_element, primary_emotion, tags, annotations, project_id }) {
   if (!supabase || !userId || !entryId) return null;
   const payload = {};
-  if (entry_text !== undefined) payload.entry_text = entry_text.trim();
+  if (entry_text !== undefined) payload.entry_text = typeof entry_text === 'string' ? entry_text.trim() : entry_text;
   if (primary_emotion !== undefined || detected_element !== undefined) payload.detected_element = primary_emotion ?? detected_element ?? null;
+  if (tags !== undefined) payload.tags = Array.isArray(tags) ? tags : [];
+  if (annotations !== undefined) payload.annotations = Array.isArray(annotations) ? annotations : [];
+  if (project_id !== undefined) payload.project_id = project_id || null;
   const { data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
     .update(payload)
     .eq('id', entryId)
     .eq('user_id', userId)
-    .select('id, entry_text, detected_element, created_at')
+    .select('id, entry_text, detected_element, tags, annotations, project_id, created_at')
     .single();
   if (error) {
-    console.warn('Mycélium updateJournalEntry:', error.message);
+    console.warn('updateJournalEntry:', error.message);
     return null;
   }
   return data;
@@ -353,16 +357,91 @@ export async function deleteJournalEntry(userId, entryId) {
  * Liste des entrées du journal (archives), plus récentes en premier.
  * Inclut les colonnes IA et les métadonnées de tri (is_pinned, custom_order).
  */
-export async function getJournalEntries(userId, limit = 50) {
+export async function getJournalEntries(userId, limit = 50, projectId = null) {
   if (!supabase || !userId) return [];
-  const { data } = await supabase
+  let q = supabase
     .from(TABLE_USER_JOURNAL)
-    .select('id, entry_text, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, media_urls, mycelium_link, linked_entry_id, created_at')
+    .select('id, entry_text, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, media_urls, mycelium_link, linked_entry_id, tags, annotations, project_id, created_at')
     .eq('user_id', userId)
     .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
+  if (projectId) q = q.eq('project_id', projectId);
+  const { data } = await q;
   return data ?? [];
+}
+
+// ========================================================================
+// PROJETS (Second Brain)
+// ========================================================================
+
+export async function getProjects(userId) {
+  if (!supabase || !userId) return [];
+  const { data } = await supabase
+    .from(TABLE_PROJECTS)
+    .select('id, name, color, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  return data ?? [];
+}
+
+export async function createProject(userId, { name, color }) {
+  if (!supabase || !userId || !name?.trim()) return null;
+  const { data, error } = await supabase
+    .from(TABLE_PROJECTS)
+    .insert({
+      user_id: userId,
+      name: name.trim(),
+      color: color || '#6B7280',
+      updated_at: new Date().toISOString(),
+    })
+    .select('id, name, color, created_at')
+    .single();
+  if (error) {
+    console.warn('createProject:', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function updateProject(userId, projectId, { name, color }) {
+  if (!supabase || !userId || !projectId) return null;
+  const payload = { updated_at: new Date().toISOString() };
+  if (name !== undefined) payload.name = String(name).trim();
+  if (color !== undefined) payload.color = color;
+  const { data, error } = await supabase
+    .from(TABLE_PROJECTS)
+    .update(payload)
+    .eq('id', projectId)
+    .eq('user_id', userId)
+    .select('id, name, color, created_at')
+    .single();
+  if (error) {
+    console.warn('updateProject:', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function deleteProject(userId, projectId) {
+  if (!supabase || !userId || !projectId) return false;
+  const { error } = await supabase
+    .from(TABLE_PROJECTS)
+    .delete()
+    .eq('id', projectId)
+    .eq('user_id', userId);
+  if (error) {
+    console.warn('deleteProject:', error.message);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Liste des notes pour l'Explorateur (limite élevée, optionnellement par projet).
+ */
+export async function getJournalEntriesForExplorer(userId, { projectId = null, limit = 200 } = {}) {
+  return getJournalEntries(userId, limit, projectId || undefined);
 }
 
 /**
@@ -579,28 +658,33 @@ export async function getPastJournalEntries(userId, limit = 3) {
  * @param {object} params.aiResponse - La réponse de Claude { element, quote, reflection, insight, quest }
  * @returns {Promise<object|null>} L'entrée créée ou null si erreur
  */
-export async function saveCompanionJournalEntry(userId, { entry_text, aiResponse }) {
-  if (!supabase || !userId || !entry_text?.trim()) return null;
+export async function saveCompanionJournalEntry(userId, { entry_text, aiResponse, tags, project_id }) {
+  if (!supabase || !userId) return null;
+  const text = typeof entry_text === 'string' ? entry_text.trim() : (entry_text?.trim?.() ?? '');
+  if (!text) return null;
 
+  const row = {
+    user_id: userId,
+    entry_text: text,
+    detected_element: aiResponse?.element || null,
+    ai_element: aiResponse?.element || null,
+    ai_quote: aiResponse?.quote || null,
+    ai_reflection: aiResponse?.reflection || null,
+    ai_insight: aiResponse?.insight || null,
+    ai_quest: aiResponse?.quest || null,
+    mycelium_link: aiResponse?.mycelium_link || null,
+    analysis_completed_at: new Date().toISOString(),
+    tags: Array.isArray(tags) ? tags : [],
+  };
+  if (project_id) row.project_id = project_id;
   const { data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
-    .insert({
-      user_id: userId,
-      entry_text: entry_text.trim(),
-      detected_element: aiResponse?.element || null,
-      ai_element: aiResponse?.element || null,
-      ai_quote: aiResponse?.quote || null,
-      ai_reflection: aiResponse?.reflection || null,
-      ai_insight: aiResponse?.insight || null,
-      ai_quest: aiResponse?.quest || null,
-      mycelium_link: aiResponse?.mycelium_link || null,
-      analysis_completed_at: new Date().toISOString(),
-    })
+    .insert(row)
     .select('*')
     .single();
 
   if (error) {
-    console.warn('Mycélium saveCompanionJournalEntry:', error.message);
+    console.warn('saveCompanionJournalEntry:', error.message);
     return null;
   }
 
