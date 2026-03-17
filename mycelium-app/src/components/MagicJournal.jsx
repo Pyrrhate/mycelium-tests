@@ -513,9 +513,9 @@ export default function MagicJournal({ onBack, userId, initiateName }) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] gap-4">
-      {/* Timeline Controls */}
-      <div className="flex items-center justify-between gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
-        <div className="flex items-center gap-4">
+      {/* Timeline Controls — mobile : Nouvelle entrée + Rechercher en haut, filtre + échelle en dessous */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
+        <div className="flex items-center gap-4 flex-shrink-0">
           <button
             onClick={() => setViewMode(viewMode === 'timeline' ? 'compose' : 'timeline')}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
@@ -527,22 +527,20 @@ export default function MagicJournal({ onBack, userId, initiateName }) {
             <Feather className="w-4 h-4 inline mr-2" />
             Nouvelle entrée
           </button>
-          
-          <div className="h-8 w-px bg-white/10" />
-          
-          <div className="relative">
+          <div className="h-8 w-px bg-white/10 hidden md:block" />
+          <div className="relative flex-1 md:flex-initial min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#F1F1E6]/40" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Rechercher..."
-              className="w-48 pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-[#F1F1E6] placeholder-[#F1F1E6]/30 focus:outline-none focus:border-[var(--accent)]/40"
+              className="w-full md:w-48 pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-[#F1F1E6] placeholder-[#F1F1E6]/30 focus:outline-none focus:border-[var(--accent)]/40"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 md:gap-4 border-t border-white/10 pt-4 md:border-t-0 md:pt-0">
           <div className="flex gap-1">
             {['recent', 'oldest', 'custom'].map(order => (
               <button
@@ -558,21 +556,19 @@ export default function MagicJournal({ onBack, userId, initiateName }) {
               </button>
             ))}
           </div>
-
-          <div className="h-8 w-px bg-white/10" />
-
-          <div className="flex items-center gap-3">
-            <ZoomOut className="w-4 h-4 text-[#F1F1E6]/40" />
+          <div className="h-8 w-px bg-white/10 hidden md:block" />
+          <div className="flex items-center gap-3 flex-1 md:flex-initial min-w-[180px]">
+            <ZoomOut className="w-4 h-4 text-[#F1F1E6]/40 flex-shrink-0" />
             <input
               type="range"
               min={ZOOM_LEVELS.MIN}
               max={ZOOM_LEVELS.MAX}
               value={zoomLevel}
               onChange={(e) => setZoomLevel(Number(e.target.value))}
-              className="w-32 accent-[var(--accent)]"
+              className="flex-1 min-w-0 accent-[var(--accent)]"
             />
-            <ZoomIn className="w-4 h-4 text-[#F1F1E6]/40" />
-            <span className="text-xs text-[#F1F1E6]/50 w-8">{zoomLevel}%</span>
+            <ZoomIn className="w-4 h-4 text-[#F1F1E6]/40 flex-shrink-0" />
+            <span className="text-xs text-[#F1F1E6]/50 w-8 flex-shrink-0">{zoomLevel}%</span>
           </div>
         </div>
       </div>

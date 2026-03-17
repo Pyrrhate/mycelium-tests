@@ -63,18 +63,30 @@ const corsHeaders = {
 };
 
 serve(async (req: Request) => {
+  const safeJson = (res: object) =>
+    new Response(JSON.stringify(res), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
+  }
+
+  if (req.method !== 'POST') {
+    return safeJson({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const body = await req.json();
-    const chatHistory = body.chat_history || [];
+    let body: { chat_history?: unknown };
+    try {
+      body = await req.json();
+    } catch (_) {
+      return safeJson({ error: 'Body JSON invalide ou manquant' });
+    }
+    const chatHistory = body?.chat_history ?? [];
 
     if (!Array.isArray(chatHistory)) {
       return new Response(
         JSON.stringify({ error: 'chat_history doit être un tableau' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -83,8 +95,8 @@ serve(async (req: Request) => {
     if (!apiKey) {
       console.error('ANTHROPIC_API_KEY not found');
       return new Response(
-        JSON.stringify({ error: 'Configuration API manquante' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Configuration API manquante. Ajoutez ANTHROPIC_API_KEY dans Supabase → Project Settings → Edge Functions → Secrets.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -102,6 +114,8 @@ serve(async (req: Request) => {
 
     console.log('Calling Anthropic for initiation, messages:', messages.length);
 
+    const model = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-20250514';
+
     const response = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
       headers: {
@@ -110,7 +124,7 @@ serve(async (req: Request) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model,
         max_tokens: 800,
         system: SYSTEM_PROMPT,
         messages,
@@ -120,9 +134,14 @@ serve(async (req: Request) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Anthropic API error:', response.status, errorText);
+      let errMsg = `Erreur API Claude: ${response.status}`;
+      try {
+        const errJson = JSON.parse(errorText);
+        if (errJson.error?.message) errMsg = errJson.error.message;
+      } catch (_) {}
       return new Response(
-        JSON.stringify({ error: `Erreur API: ${response.status}` }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: errMsg }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -131,8 +150,8 @@ serve(async (req: Request) => {
 
     if (!content) {
       return new Response(
-        JSON.stringify({ error: 'Réponse vide' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Réponse vide de Claude' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -173,9 +192,6 @@ serve(async (req: Request) => {
     );
   } catch (error) {
     console.error('Function error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Erreur interne du serveur' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return safeJson({ error: 'Erreur interne du serveur. Réessayez.' });
   }
 });

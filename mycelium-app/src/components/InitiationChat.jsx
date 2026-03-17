@@ -37,6 +37,10 @@ const ELEMENT_NAMES = {
   ether: 'Le Vide',
 };
 
+/** Première question affichée sans appel API — Claude n'est appelé qu'après la première réponse de l'utilisateur. */
+const WELCOME_FIRST_QUESTION =
+  'Bienvenue, voyageur. Avant de vous révéler les secrets du Grimoire, dites-moi : quand le vent souffle fort, cherchez-vous un abri ou ouvrez-vous les bras ?';
+
 function ChatBubble({ message, isGuardian }) {
   return (
     <motion.div
@@ -194,7 +198,9 @@ function ResultsReveal({ scores, totem, totemDescription, onContinue }) {
 }
 
 export default function InitiationChat({ userId, onComplete }) {
-  const [chatHistory, setChatHistory] = useState([]);
+  const [chatHistory, setChatHistory] = useState([
+    { role: 'guardian', content: WELCOME_FIRST_QUESTION },
+  ]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -202,35 +208,8 @@ export default function InitiationChat({ userId, onComplete }) {
   const chatEndRef = useRef(null);
 
   useEffect(() => {
-    startInitiation();
-  }, []);
-
-  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
-
-  const startInitiation = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('initiation-oracle', {
-        body: { chat_history: [] },
-      });
-
-      if (error) throw new Error(error.message);
-
-      if (data.status === 'asking') {
-        setChatHistory([{ role: 'guardian', content: data.reply }]);
-      }
-    } catch (err) {
-      console.error('Initiation start error:', err);
-      setChatHistory([{
-        role: 'guardian',
-        content: 'Bienvenue, voyageur. Avant de vous révéler les secrets du Grimoire, dites-moi : quand le vent souffle fort, cherchez-vous un abri ou ouvrez-vous les bras ?',
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const sendMessage = async () => {
     if (!userInput.trim() || isLoading) return;
@@ -248,11 +227,15 @@ export default function InitiationChat({ userId, onComplete }) {
         body: { chat_history: newHistory },
       });
 
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(data?.error || error.message);
 
-      if (data.status === 'asking') {
+      if (data?.error) {
+        setError(data.error);
+        return;
+      }
+      if (data?.status === 'asking') {
         setChatHistory([...newHistory, { role: 'guardian', content: data.reply }]);
-      } else if (data.status === 'complete') {
+      } else if (data?.status === 'complete') {
         setChatHistory([...newHistory, { role: 'guardian', content: data.reply }]);
         
         setTimeout(() => {
@@ -269,7 +252,7 @@ export default function InitiationChat({ userId, onComplete }) {
       }
     } catch (err) {
       console.error('Send message error:', err);
-      setError('Le Grimoire semble perturbé. Veuillez réessayer.');
+      setError(err?.message || 'Le Grimoire semble perturbé. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }

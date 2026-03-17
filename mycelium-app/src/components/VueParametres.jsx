@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Key, Mail, TreeDeciduous, Trash2 } from 'lucide-react';
+import { Settings, Key, Mail, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 /**
@@ -116,26 +116,6 @@ export default function VueParametres({ onBack, userId, canActivatePublic, isPub
             {loading ? 'Envoi...' : 'Modifier l\'email'}
           </button>
         </form>
-      </section>
-
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-        <h2 className="font-serif text-lg font-bold accent-color mb-4 flex items-center gap-2">
-          <TreeDeciduous className="w-5 h-5" />
-          Visibilité dans la Forêt
-        </h2>
-        {canActivatePublic ? (
-          <button
-            type="button"
-            onClick={onToggleForest}
-            className="px-4 py-2 rounded-xl bg-[var(--accent)]/20 border border-[var(--accent)]/50 accent-color font-medium hover:bg-[var(--accent)]/30"
-          >
-            {isPublic ? 'Masquer mon profil de la Forêt' : 'Activer mon affichage dans la Forêt'}
-          </button>
-        ) : (
-          <p className="text-[#F1F1E6]/60 text-sm">
-            Complétez les 49 Racines, le Totem et atteignez 1500 XP (Racine Ancrée) pour pouvoir apparaître dans la Forêt.
-          </p>
-        )}
       </section>
 
       <section className="rounded-2xl border border-red-900/30 bg-red-950/10 p-6 backdrop-blur-xl">

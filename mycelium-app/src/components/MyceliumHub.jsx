@@ -82,7 +82,7 @@ function LockedStepCard({ stepLabel, prerequisiteLabel, prerequisiteStep, onBack
 export default function MyceliumHub({ session, onLogout }) {
   const [toasts, setToasts] = useState([]);
   const [pulse, setPulse] = useState(null);
-  const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' | '49racines' | 'totem' | 'reseau' | 'eveil'
+  const [activeView, setActiveView] = useState('journal');
   const [lastResult, setLastResult] = useState(() => {
     try {
       const s = localStorage.getItem('mycelium_last_result');
@@ -207,10 +207,7 @@ export default function MyceliumHub({ session, onLogout }) {
 
   // MVP Navigation — modules complexes commentés pour focus sur les piliers essentiels
   const navItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
-    { id: 'profil', icon: User, label: 'Mon profil' },
     { id: 'initiation', icon: BookOpen, label: 'Initiation Anima' },
-    { id: 'questionnaires', icon: BookOpen, label: 'Parcours classique' },
     { id: 'journal', icon: ScrollText, label: 'Le Journal Magique' },
     // ——— Modules désactivés pour le MVP ———
     // { id: 'constellation', icon: Star, label: 'L\'Observatoire de la Constellation' },
@@ -310,23 +307,6 @@ export default function MyceliumHub({ session, onLogout }) {
             <span className="text-xs leading-tight">{item.label}</span>
           </motion.button>
         ))}
-        {/* XP & PS & Grade dans la sidebar — source unique useInitiationStatus */}
-        <div className="mt-auto px-3 pt-4 border-t border-[var(--accent)]/10">
-          <p className="text-[#F1F1E6]/70 text-xs font-medium accent-color">{rank.label}</p>
-          <div className="flex items-baseline gap-2 mt-1">
-            <p className="text-lg font-bold accent-color tabular-nums">{xpSeve} XP</p>
-            <p className="text-sm text-emerald-400/90 tabular-nums">{symbiosePoints} PS</p>
-          </div>
-          <div className="h-1.5 rounded-full bg-[#0d1211] border border-[var(--accent)]/20 overflow-hidden mt-1">
-            <motion.div
-              className="h-full bg-[var(--accent)]/80 rounded-full"
-              key={xpSeve}
-              initial={{ width: 0 }}
-              animate={{ width: xpProgress.needed ? `${(xpProgress.current / xpProgress.needed) * 100}%` : '100%' }}
-              transition={{ duration: 0.6 }}
-            />
-          </div>
-        </div>
         <div className="mt-auto">
           <button
             onClick={handleLogout}
