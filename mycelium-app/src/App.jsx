@@ -8,6 +8,7 @@ import { useInitiationStatus } from './hooks/useInitiationStatus';
 import { supabase } from './supabaseClient';
 import { updateProfile } from './services/myceliumSave';
 import { LogOut, Settings } from 'lucide-react';
+import ThemeToggle from './components/ThemeToggle';
 
 function AppJournalView({ session, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
@@ -20,6 +21,7 @@ function AppJournalView({ session, onLogout }) {
           {showSettings ? 'Paramètres' : 'Smart Journal'}
         </span>
         <div className="flex items-center gap-2">
+          <ThemeToggle compact />
           {showSettings ? (
             <button
               type="button"
@@ -55,6 +57,7 @@ function AppJournalView({ session, onLogout }) {
             <VueParametres
               onBack={() => setShowSettings(false)}
               userId={session?.user?.id}
+              profile={profile}
               canActivatePublic={canActivatePublic}
               isPublic={isPublic}
               onToggleForest={async () => {

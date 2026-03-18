@@ -1,9 +1,21 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
-import { useCallback, useEffect } from 'react';
-import { Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2, Heading3, List } from 'lucide-react';
+import TextStyle from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
+import Highlight from '@tiptap/extension-highlight';
+import FontFamily from '@tiptap/extension-font-family';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2, Heading3, List, MessageSquarePlus, Wand2, Loader2 } from 'lucide-react';
+import PageAppearanceMenu from './PageAppearanceMenu';
+import ParagraphAnnotationsOverlay from './ParagraphAnnotationsOverlay';
+import ParagraphAnnotationSheet from './ParagraphAnnotationSheet';
+import ParagraphId from '../tiptap/ParagraphId';
+import { supabase } from '../supabaseClient';
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 const ToolbarButton = ({ active, onClick, children, title }) => (
   <button
@@ -16,6 +28,38 @@ const ToolbarButton = ({ active, onClick, children, title }) => (
   </button>
 );
 
+const proofreadPluginKey = new PluginKey('proofread-selection');
+
+const ProofreadSelectionDecoration = Extension.create({
+  name: 'proofreadSelectionDecoration',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: proofreadPluginKey,
+        state: {
+          init: () => ({ active: false }),
+          apply(tr, value) {
+            const next = tr.getMeta(proofreadPluginKey);
+            if (next && typeof next.active === 'boolean') return { active: next.active };
+            return value;
+          },
+        },
+        props: {
+          decorations(state) {
+            const pluginState = proofreadPluginKey.getState(state);
+            if (!pluginState?.active) return null;
+            const { from, to } = state.selection;
+            if (from === to) return null;
+            return DecorationSet.create(state.doc, [
+              Decoration.inline(from, to, { class: 'sj-proofreading-selection' }),
+            ]);
+          },
+        },
+      }),
+    ];
+  },
+});
+
 export default function RichTextEditor({
   value = '',
   onChange,
@@ -25,21 +69,52 @@ export default function RichTextEditor({
   className = '',
   stickyToolbar = true,
   rightSlot = null,
+  pageAppearance = 'default', // 'default' | 'grain' | 'lines' | 'dots'
+  onPageAppearanceChange,
+  annotations = [],
+  onAnnotationsChange,
+  isMobile = false,
+  onMentorClick,
+  spellcheck = true,
+  density = 'comfortable', // 'comfortable' | 'compact'
+  onDensityChange,
 }) {
+  const surfaceRef = useRef(null);
+  const [openParagraphId, setOpenParagraphId] = useState(null);
+  const [proofreading, setProofreading] = useState(false);
+  const [toast, setToast] = useState('');
+  const toastTimerRef = useRef(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       Underline,
+      ParagraphId,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      FontFamily,
+      ProofreadSelectionDecoration,
       Placeholder.configure({ placeholder: placeholder || 'Écrivez ici…' }),
     ],
     content: value || '',
     editable: !disabled,
     editorProps: {
       attributes: {
-        class: 'prose prose-invert focus:outline-none min-h-[240px] px-12 py-12 text-[#e5e5e5] max-w-[720px] mx-auto',
+        class: 'prose focus:outline-none min-h-[240px] px-4 py-4 md:px-12 md:py-12 md:max-w-[720px] md:mx-auto',
       },
     },
   });
+
+  useEffect(() => {
+    if (!editor) return;
+    const cls = density === 'compact'
+      ? 'prose focus:outline-none min-h-[240px] px-4 py-4 max-w-full mx-0 text-sm leading-relaxed'
+      : 'prose focus:outline-none min-h-[240px] px-4 py-4 md:px-12 md:py-12 md:max-w-[720px] md:mx-auto';
+    editor.setOptions({
+      editorProps: { attributes: { class: cls } },
+    });
+  }, [editor, density]);
 
   useEffect(() => {
     if (editor && value !== undefined && value !== editor.getHTML()) {
@@ -63,8 +138,123 @@ export default function RichTextEditor({
 
   if (!editor) return null;
 
+  const showToast = (text) => {
+    setToast(text);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 2200);
+  };
+
+  const selectionHasText = () => {
+    const { from, to } = editor.state.selection;
+    return to > from;
+  };
+
+  const getSelectedText = () => {
+    const { from, to } = editor.state.selection;
+    if (to <= from) return '';
+    return editor.state.doc.textBetween(from, to, '\n').trim();
+  };
+
+  const setSelectionDecorationActive = (active) => {
+    const tr = editor.state.tr.setMeta(proofreadPluginKey, { active });
+    editor.view.dispatch(tr);
+  };
+
+  const handleProofread = async () => {
+    if (!supabase) {
+      showToast('Supabase non configuré.');
+      return;
+    }
+    if (proofreading) return;
+    if (!selectionHasText()) return;
+    const selected_text = getSelectedText();
+    if (!selected_text) return;
+
+    const { from, to } = editor.state.selection;
+    setProofreading(true);
+    setSelectionDecorationActive(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-proofread', { body: { selected_text } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const corrected = String(data?.result || '').trim();
+      if (!corrected) throw new Error('Réponse vide.');
+
+      editor.chain().focus().insertContentAt({ from, to }, corrected).run();
+      showToast('Correction appliquée avec succès.');
+    } catch (err) {
+      const msg = err?.message || 'Erreur de correction.';
+      showToast(msg);
+    } finally {
+      setSelectionDecorationActive(false);
+      setProofreading(false);
+    }
+  };
+
+  const applyFontToWholeNote = (font) => {
+    editor.chain().focus().selectAll().setFontFamily(font).run();
+    // Rétablir une sélection "normale" après selectAll
+    editor.commands.setTextSelection(editor.state.selection.to);
+  };
+
+  const TEXT_COLORS = [
+    { id: 'default', label: 'Auto', value: null },
+    { id: 'gray', label: 'Gris', value: '#9CA3AF' },
+    { id: 'red', label: 'Rouge', value: '#EF4444' },
+    { id: 'amber', label: 'Ambre', value: '#F59E0B' },
+    { id: 'green', label: 'Vert', value: '#10B981' },
+    { id: 'blue', label: 'Bleu', value: '#3B82F6' },
+    { id: 'purple', label: 'Violet', value: '#8B5CF6' },
+  ];
+
+  const HIGHLIGHTS = [
+    { id: 'none', label: 'Aucun', value: null },
+    { id: 'yellow', label: 'Jaune', value: 'rgba(245, 158, 11, 0.35)' },
+    { id: 'green', label: 'Vert', value: 'rgba(16, 185, 129, 0.30)' },
+    { id: 'blue', label: 'Bleu', value: 'rgba(59, 130, 246, 0.28)' },
+    { id: 'pink', label: 'Rose', value: 'rgba(236, 72, 153, 0.22)' },
+  ];
+
+  const FONTS = [
+    { id: 'sans', label: 'Sans', value: 'Inter' },
+    { id: 'hand', label: 'Manuscrite', value: 'Kalam' },
+    { id: 'system', label: 'Système', value: 'system-ui' },
+  ];
+
   return (
     <div className={`rounded-lg border border-gray-800 bg-[#1a1a1a] overflow-hidden flex flex-col ${className}`}>
+      {toast ? (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]">
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/15 text-emerald-200 px-4 py-2 text-sm shadow-xl shadow-black/40">
+            {toast}
+          </div>
+        </div>
+      ) : null}
+
+      <BubbleMenu
+        editor={editor}
+        tippyOptions={{ duration: 120, placement: 'top' }}
+        shouldShow={() => {
+          if (disabled) return false;
+          const { from, to } = editor.state.selection;
+          return to > from;
+        }}
+      >
+        <div className="flex items-center gap-2 rounded-xl border border-gray-800 bg-[#111111] px-2 py-1 shadow-xl shadow-black/40">
+          <button
+            type="button"
+            onClick={handleProofread}
+            disabled={proofreading || !selectionHasText()}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed transition"
+            title="Corriger la sélection"
+          >
+            {proofreading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            Corriger
+          </button>
+          <span className="text-xs text-gray-500 hidden sm:inline">Sélection uniquement</span>
+        </div>
+      </BubbleMenu>
+
       <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b border-gray-800 bg-[#222] ${stickyToolbar ? 'sticky top-0 z-10' : ''}`}>
         <div className="flex flex-wrap gap-1">
           <ToolbarButton
@@ -117,14 +307,147 @@ export default function RichTextEditor({
           >
             <List className="w-4 h-4" />
           </ToolbarButton>
+          <ToolbarButton
+            active={false}
+            onClick={() => {
+              const { state, view } = editor;
+              const { $from } = state.selection;
+              let paragraphPos = null;
+              for (let d = $from.depth; d > 0; d -= 1) {
+                const node = $from.node(d);
+                if (node.type.name === 'paragraph') {
+                  paragraphPos = $from.before(d);
+                  break;
+                }
+              }
+              if (paragraphPos == null) return;
+              const node = state.doc.nodeAt(paragraphPos);
+              if (!node) return;
+              const paragraphId = node.attrs?.paragraphId || (crypto.randomUUID?.() || Date.now().toString());
+              if (!node.attrs?.paragraphId) {
+                const tr = state.tr.setNodeMarkup(paragraphPos, undefined, { ...node.attrs, paragraphId }, node.marks);
+                view.dispatch(tr);
+              }
+              setOpenParagraphId(paragraphId);
+            }}
+            title="Annoter ce paragraphe"
+          >
+            <MessageSquarePlus className="w-4 h-4" />
+          </ToolbarButton>
         </div>
-        {rightSlot ? <div className="flex items-center gap-2">{rightSlot}</div> : null}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onMentorClick}
+            className="px-3 py-2 rounded-lg text-sm border border-gray-700 text-gray-200 hover:bg-gray-800/50 transition"
+            title="Mentor éditorial (Premium)"
+          >
+            🧠 Mentor
+          </button>
+          <select
+            value={density}
+            onChange={(e) => onDensityChange?.(e.target.value)}
+            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+            title="Densité"
+          >
+            <option value="comfortable">Confort</option>
+            <option value="compact">Compact</option>
+          </select>
+          <select
+            value={editor.getAttributes('textStyle').color || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetColor().run();
+              else editor.chain().focus().setColor(v).run();
+            }}
+            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+            title="Couleur du texte"
+          >
+            {TEXT_COLORS.map((c) => (
+              <option key={c.id} value={c.value || ''}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={editor.getAttributes('highlight').color || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetHighlight().run();
+              else editor.chain().focus().setHighlight({ color: v }).run();
+            }}
+            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+            title="Surlignage"
+          >
+            {HIGHLIGHTS.map((h) => (
+              <option key={h.id} value={h.value || ''}>
+                {h.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={editor.getAttributes('textStyle').fontFamily || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetFontFamily().run();
+              else applyFontToWholeNote(v);
+            }}
+            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+            title="Typographie"
+          >
+            <option value="">Typographie</option>
+            {FONTS.map((f) => (
+              <option key={f.id} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+
+          <PageAppearanceMenu value={pageAppearance} onChange={onPageAppearanceChange} />
+          {rightSlot ? <div className="flex items-center gap-2">{rightSlot}</div> : null}
+        </div>
       </div>
-      <EditorContent
-        editor={editor}
-        style={{ minHeight }}
-        className="flex-1 min-h-0 [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:h-full [&_.ProseMirror]:p-0 [&_.ProseMirror]:text-[#e5e5e5] [&_.ProseMirror]:focus:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-500"
-      />
+      <div
+        className={`relative flex-1 min-h-0 sj-editor-surface sj-page-surface ${
+          pageAppearance === 'grain'
+            ? 'sj-page-grain'
+            : pageAppearance === 'lines'
+              ? 'sj-page-lines'
+              : pageAppearance === 'dots'
+                ? 'sj-page-dots'
+                : 'sj-page-default'
+        }`}
+        ref={surfaceRef}
+      >
+        <div className="absolute inset-0 pointer-events-none hidden md:block">
+          {/* marge droite desktop */}
+          <div className="absolute top-0 right-0 w-64 h-full" />
+        </div>
+        <EditorContent
+          editor={editor}
+          style={{ minHeight }}
+          spellCheck={spellcheck}
+          className="flex-1 min-h-0 [&_.ProseMirror]:min-h-[240px] [&_.ProseMirror]:p-0 [&_.ProseMirror]:text-[color:var(--text-main)] [&_.ProseMirror]:focus:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-[color:var(--text-muted)]"
+        />
+
+        <ParagraphAnnotationsOverlay
+          editor={editor}
+          surfaceRef={surfaceRef}
+          annotations={annotations}
+          isMobile={isMobile}
+          onOpenAnnotation={(pid) => setOpenParagraphId(pid)}
+        />
+
+        <ParagraphAnnotationSheet
+          open={!!openParagraphId}
+          paragraphId={openParagraphId}
+          annotations={annotations}
+          onClose={() => setOpenParagraphId(null)}
+          onChange={onAnnotationsChange}
+        />
+      </div>
     </div>
   );
 }

@@ -7,8 +7,9 @@ import {
 import { getJournalEntriesForExplorer } from '../services/myceliumSave';
 import { stripHtml } from '../utils/exportNote';
 import { exportNotesToCombinedPdf } from '../utils/exportNote';
+import NotesViewControls from './NotesViewControls';
 
-export default function ExplorerView({ userId, projects = [], onBack, onSelectNote }) {
+export default function ExplorerView({ userId, projects = [], onBack, onSelectNote, zoomLevel = 70, onZoomChange, onOpenInSplitNote }) {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,7 +126,9 @@ export default function ExplorerView({ userId, projects = [], onBack, onSelectNo
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto">
+        <NotesViewControls zoomLevel={zoomLevel} onZoomChange={onZoomChange} />
+        <div className="p-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
@@ -136,28 +139,34 @@ export default function ExplorerView({ userId, projects = [], onBack, onSelectNo
             <p>Aucune note trouvée</p>
           </div>
         ) : (
-          <ul className="space-y-2">
-            {filtered.map((entry) => (
-              <motion.li
-                key={entry.id}
-                layout
-                className={`rounded-xl border p-4 transition cursor-pointer ${selectionMode && selectedIds.has(entry.id) ? 'border-gray-500 bg-gray-800/50' : 'border-gray-800 bg-[#1a1a1a] hover:bg-[#222]'}`}
-                onClick={() => {
-                  if (selectionMode) toggleSelect(entry.id);
-                  else onSelectNote?.(entry);
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  {selectionMode && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); toggleSelect(entry.id); }}
-                      className="mt-0.5 p-1 rounded text-gray-400 hover:text-white"
-                    >
-                      {selectedIds.has(entry.id) ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
-                    </button>
-                  )}
-                  <div className="flex-1 min-w-0">
+          zoomLevel >= 70 ? (
+            <ul className="space-y-2">
+              {filtered.map((entry) => (
+                <motion.li
+                  key={entry.id}
+                  layout
+                  className={`rounded-xl border p-4 transition cursor-pointer ${
+                    selectionMode && selectedIds.has(entry.id)
+                      ? 'border-gray-500 bg-gray-800/50'
+                      : 'border-gray-800 bg-[#1a1a1a] hover:bg-[#222]'
+                  }`}
+                  onClick={(e) => {
+                    if (selectionMode) toggleSelect(entry.id);
+                    else if (e.altKey) onOpenInSplitNote?.(entry);
+                    else onSelectNote?.(entry);
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    {selectionMode && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleSelect(entry.id); }}
+                        className="mt-0.5 p-1 rounded text-gray-400 hover:text-white"
+                      >
+                        {selectedIds.has(entry.id) ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+                      </button>
+                    )}
+                    <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-500 mb-1">
                       {new Date(entry.created_at).toLocaleDateString('fr-FR', { dateStyle: 'long' })}
                     </p>
@@ -169,12 +178,36 @@ export default function ExplorerView({ userId, projects = [], onBack, onSelectNo
                         ))}
                       </div>
                     )}
+                    </div>
                   </div>
-                </div>
-              </motion.li>
-            ))}
-          </ul>
+                </motion.li>
+              ))}
+            </ul>
+          ) : (
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {filtered.map((entry) => {
+                const preview = stripHtml(entry.entry_text || '').slice(0, 160);
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={(e) => {
+                      if (e.altKey) onOpenInSplitNote?.(entry);
+                      else onSelectNote?.(entry);
+                    }}
+                    className={`text-left rounded-xl border border-gray-800 bg-[#1a1a1a] hover:bg-[#222] transition p-4 ${
+                      selectionMode && selectedIds.has(entry.id) ? 'ring-1 ring-gray-500' : ''
+                    }`}
+                  >
+                    <p className="text-sm text-gray-200 font-medium line-clamp-2">{stripHtml(entry.entry_text || '').slice(0, 48) || 'Note'}</p>
+                    <p className="text-xs text-gray-500 mt-2 line-clamp-3">{preview}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )
         )}
+        </div>
       </div>
 
       <AnimatePresence>

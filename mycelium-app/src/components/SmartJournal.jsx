@@ -4,11 +4,16 @@ import {
   Sparkles, Loader2, Feather, Quote, HelpCircle, BookOpen,
   Pin, Pencil, Trash2, X, Search, Image, Mic, Video, ZoomIn, ZoomOut, StickyNote,
   Download, FileText, FileDown, ChevronDown, ListTodo, Brain, Tag, ScanLine, Paperclip,
-  FolderOpen, Plus, Maximize2, Minimize2
+  FolderOpen, Plus, Maximize2, Minimize2, Menu, ChevronLeft, PanelRightOpen
 } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import ExplorerView from './ExplorerView';
 import ProjectView from './ProjectView';
+import NotesViewControls from './NotesViewControls';
+import MentorUpsellModal from './MentorUpsellModal';
+import MentorPanel from './MentorPanel';
+import MediaViewer from './MediaViewer';
+import SplitNoteEditor from './SplitNoteEditor';
 import { supabase } from '../supabaseClient';
 import {
   getPastJournalEntries,
@@ -56,7 +61,7 @@ async function analyzeJournalEntry(currentEntry, contextEntries = [], useMock = 
   }
 }
 
-function MediaPreview({ media, onRemove }) {
+function MediaPreview({ media, onRemove, onOpenSide }) {
   if (!media?.length) return null;
   return (
     <div className="flex flex-wrap gap-2 p-3 border-t border-gray-800">
@@ -88,6 +93,16 @@ function MediaPreview({ media, onRemove }) {
               className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-600 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
             >
               ×
+            </button>
+          )}
+          {onOpenSide && item?.url && (
+            <button
+              type="button"
+              onClick={() => onOpenSide(item)}
+              className="absolute bottom-1 right-1 p-1.5 rounded-md bg-black/60 border border-white/10 text-white opacity-0 group-hover:opacity-100 transition"
+              title="Ouvrir à côté"
+            >
+              <PanelRightOpen className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -277,7 +292,7 @@ function TimelineCell({ entry, zoom, isSelected, onSelect }) {
   );
 }
 
-function EntryViewer({ entry, onClose, onEdit, onExport, onAddAnnotation, onSaveAnnotations, userId }) {
+function EntryViewer({ entry, onClose, onEdit, onDelete, onExport, onAddAnnotation, onSaveAnnotations, userId, onOpenMediaSide }) {
   if (!entry) return null;
   const config = ELEMENT_CONFIG[entry.ai_element] || ELEMENT_CONFIG.Éther;
   const annotations = entry.annotations || [];
@@ -331,6 +346,16 @@ function EntryViewer({ entry, onClose, onEdit, onExport, onAddAnnotation, onSave
           <button type="button" onClick={onEdit} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-[#e5e5e5]" title="Modifier">
             <Pencil className="w-4 h-4" />
           </button>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-red-300"
+              title="Supprimer la note"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
             <X className="w-4 h-4" />
           </button>
@@ -365,6 +390,19 @@ function EntryViewer({ entry, onClose, onEdit, onExport, onAddAnnotation, onSave
                   <span className="text-sm truncate w-full text-center">{m.name || 'Fichier'}</span>
                   <span className="text-xs text-gray-500 mt-1">Télécharger</span>
                 </a>
+              )}
+              {onOpenMediaSide && m?.url && (
+                <div className="p-2 border-t border-gray-800 bg-[#141414]">
+                  <button
+                    type="button"
+                    onClick={() => onOpenMediaSide(m)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-700 text-gray-200 hover:bg-gray-800/60 transition text-sm"
+                    title="Ouvrir à côté"
+                  >
+                    <PanelRightOpen className="w-4 h-4" />
+                    Ouvrir à côté
+                  </button>
+                </div>
               )}
             </div>
           ))}
@@ -436,6 +474,8 @@ const ASSISTANT_ACTIONS = [
 
 export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, onCreditsRefetch }) {
   const [text, setText] = useState('');
+  const [pageAppearance, setPageAppearance] = useState('default');
+  const [newAnnotations, setNewAnnotations] = useState([]);
   const [currentTags, setCurrentTags] = useState([]);
   const [tagInputValue, setTagInputValue] = useState('');
   const [pendingMedia, setPendingMedia] = useState([]);
@@ -478,6 +518,19 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
   const [showCreditsExhaustedModal, setShowCreditsExhaustedModal] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileView, setMobileView] = useState('list'); // 'list' | 'editor' | 'sidebar'
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const isPremium = profile?.is_premium === true;
+  const [mentorOpen, setMentorOpen] = useState(false);
+  const [mentorUpsellOpen, setMentorUpsellOpen] = useState(false);
+  const [mentorContext, setMentorContext] = useState('');
+  const [mentorLoading, setMentorLoading] = useState(false);
+  const [mentorAdvice, setMentorAdvice] = useState('');
+
+  const [density, setDensity] = useState('comfortable'); // 'comfortable' | 'compact'
+  const [splitView, setSplitView] = useState(null); // null | { type: 'media', media } | { type: 'note', entryId }
 
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -485,6 +538,43 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
   const scannerInputRef = useRef(null);
   const attachmentInputRef = useRef(null);
   const assistantDropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(!!mq.matches);
+    update();
+    if (mq.addEventListener) mq.addEventListener('change', update);
+    else mq.addListener(update);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', update);
+      else mq.removeListener(update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileSidebarOpen(false);
+      setMobileView('list');
+    } else {
+      // Sur mobile, si une note est sélectionnée, on privilégie l'éditeur
+      if (selectedEntry || activeTabId !== 'new') setMobileView('editor');
+    }
+  }, [isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isMobile && splitView) setSplitView(null);
+  }, [isMobile, splitView]);
+
+  const openSplitMedia = (media) => {
+    if (isMobile) return;
+    setSplitView({ type: 'media', media });
+  };
+
+  const openSplitNote = (entryId) => {
+    if (isMobile) return;
+    setSplitView({ type: 'note', entryId });
+  };
 
   const plainLength = stripHtml(text).length;
   const canSubmit = plainLength >= MIN_CHARS;
@@ -672,6 +762,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     setPendingMedia([]);
     setCurrentTags([]);
     setActiveTabId('new');
+    if (isMobile) setMobileView('editor');
   };
 
   const handleSelectEntry = (entry) => {
@@ -681,6 +772,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     setViewMode('timeline');
     setActiveTabId(entry.id);
     setOpenTabs((prev) => (prev.some((t) => t.id === entry.id) ? prev : [...prev, { id: entry.id, label: 'Note' }]));
+    if (isMobile) setMobileView('editor');
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -701,6 +793,8 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     setAiResult(null);
     setActiveTabId('new');
     setViewMode('compose');
+    setNewAnnotations([]);
+    if (isMobile) setMobileView('editor');
   };
 
   const handleCloseTab = (id) => {
@@ -757,10 +851,16 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
 
   const handleDeleteEntry = async (entryId) => {
     if (!userId) return;
+    const ok = window.confirm('Supprimer cette note ? Cette action est irréversible.');
+    if (!ok) return;
     const success = await deleteJournalEntry(userId, entryId);
     if (success) {
       setArchives((prev) => prev.filter((e) => e.id !== entryId));
       if (selectedEntry?.id === entryId) setSelectedEntry(null);
+      setOpenTabs((prev) => prev.filter((t) => t.id !== entryId));
+      if (activeTabId === entryId) setActiveTabId('new');
+    } else {
+      setError("La note n'a pas pu être supprimée (vérifie tes droits RLS / connexion).");
     }
   };
 
@@ -824,8 +924,12 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
         project_id: projectFilter || null,
       });
       if (saved) {
+        if (newAnnotations.length > 0) {
+          await updateJournalEntry(userId, saved.id, { annotations: newAnnotations });
+        }
         setArchives((prev) => [{ ...saved, tags: currentTags }, ...prev]);
         setLastSavedAt(new Date());
+        setNewAnnotations([]);
       }
     } finally {
       setIsSaving(false);
@@ -892,8 +996,8 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
   };
 
   const ResizeHandle = () => (
-    <PanelResizeHandle className="w-2 flex items-center justify-center">
-      <div className="w-px h-10 bg-gray-800/80" />
+    <PanelResizeHandle className="w-1 flex items-center justify-center">
+      <div className="w-px h-8 bg-gray-800/80" />
     </PanelResizeHandle>
   );
 
@@ -931,6 +1035,45 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     </div>
   );
 
+  const handleMentorClick = () => {
+    if (!isPremium) {
+      setMentorUpsellOpen(true);
+      return;
+    }
+    setMentorOpen((v) => !v);
+  };
+
+  const requestMentorAdvice = async (contextText) => {
+    if (!userId || !supabase) return;
+    if (!isPremium) {
+      setMentorUpsellOpen(true);
+      return;
+    }
+    const contentHtml = activeTabId === 'new'
+      ? text
+      : (isEditing ? editText : (selectedEntry?.entry_text || ''));
+    const contentPlain = stripHtml(contentHtml || '').trim();
+    if (!contentPlain || contentPlain.length < 20) {
+      setMentorAdvice('• Ajoutez quelques lignes au brouillon pour que je puisse vous conseiller sur la structure.');
+      return;
+    }
+    setMentorLoading(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('writing-coach', {
+        body: { context: (contextText || '').trim(), content: contentPlain },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+      setMentorAdvice(data?.result || '');
+    } catch (err) {
+      const msg = err?.message || 'Erreur Mentor';
+      if (String(msg).includes('403') || String(msg).toLowerCase().includes('premium') || String(msg).toLowerCase().includes('abonnement')) setMentorUpsellOpen(true);
+      else setMentorAdvice(`• ${msg}`);
+    } finally {
+      setMentorLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-120px)] flex flex-col gap-4 bg-[#0D0D0D] text-[#e5e5e5]">
       <div className="m-6 mb-0 flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 rounded-2xl border border-gray-800 bg-[#1A1A1A] shadow-2xl shadow-black/70">
@@ -943,14 +1086,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
             >
               Journal
             </button>
-            <button
-              type="button"
-              onClick={() => setMainView('explorer')}
-              className={`px-3 py-2 text-sm font-medium transition flex items-center gap-1.5 ${mainView === 'explorer' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:bg-gray-800/50'}`}
-            >
-              <FolderOpen className="w-4 h-4" />
-              Explorateur
-            </button>
+            {/* Explorateur désactivé */}
           </div>
           {mainView === 'journal' && (
             <button
@@ -966,64 +1102,12 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
               Nouvelle note
             </button>
           )}
-          {mainView === 'journal' && (
-            <>
-              <div className="relative flex-1 md:flex-initial min-w-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher..."
-                  className="w-full md:w-48 pl-9 pr-3 py-2 rounded-lg bg-[#1a1a1a] border border-gray-800 text-sm text-[#e5e5e5] placeholder-gray-500 focus:outline-none focus:border-gray-600"
-                />
-              </div>
-            </>
-          )}
+          {/* Recherche déplacée dans la colonne Notes */}
         </div>
-        {mainView === 'journal' && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-gray-800 pt-4 md:border-t-0 md:pt-0">
-          <div className="flex gap-1">
-            {['recent', 'oldest', 'custom'].map((order) => (
-              <button
-                key={order}
-                type="button"
-                onClick={() => setSortOrder(order)}
-                className={`px-3 py-1.5 rounded-lg text-xs transition ${
-                  sortOrder === order ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {order === 'recent' ? 'Récent' : order === 'oldest' ? 'Ancien' : 'Manuel'}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3 min-w-[180px]">
-            <ZoomOut className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <input
-              type="range"
-              min={ZOOM_LEVELS.MIN}
-              max={ZOOM_LEVELS.MAX}
-              value={zoomLevel}
-              onChange={(e) => setZoomLevel(Number(e.target.value))}
-              className="flex-1 min-w-0 accent-gray-500"
-            />
-            <ZoomIn className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-xs text-gray-500 w-8">{zoomLevel}%</span>
-          </div>
-        </div>
-        )}
+        {/* Tri déplacé dans la colonne Notes (localité) */}
       </div>
 
-      {mainView === 'explorer' ? (
-        <div className="flex-1 min-h-0">
-          <ExplorerView
-            userId={userId}
-            projects={projects}
-            onBack={() => setMainView('journal')}
-            onSelectNote={(entry) => { setSelectedEntry(entry); setMainView('journal'); }}
-          />
-        </div>
-      ) : activeProjectId ? (
+      {activeProjectId ? (
         <div className="flex-1 min-h-0">
           <ProjectView
             project={projects.find((p) => p.id === activeProjectId)}
@@ -1046,7 +1130,293 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
         </div>
       ) : (
       <div className="flex-1 min-h-0">
-        {focusMode ? (
+        {/* Mobile-first : une seule vue à la fois */}
+        {isMobile ? (
+          <div className="m-4 mt-0 h-full">
+            {/* Drawer Sidebar */}
+            {mobileSidebarOpen && (
+              <>
+                <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setMobileSidebarOpen(false)} aria-hidden />
+                <div className="fixed inset-y-0 left-0 z-50 w-[85vw] max-w-sm bg-[#1A1A1A] border-r border-gray-800 shadow-2xl shadow-black/70 p-4 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-semibold text-gray-200">Filtres</p>
+                    <button type="button" onClick={() => setMobileSidebarOpen(false)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  {/* Sidebar content (réutilise le même JSX que desktop) */}
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Projets</p>
+                      <button
+                        type="button"
+                        onClick={() => { setProjectFilter(null); setActiveProjectId(null); setMobileSidebarOpen(false); }}
+                        className={`w-full text-left px-2 py-1.5 rounded-lg text-sm mb-1 transition ${!projectFilter ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
+                      >
+                        Tous
+                      </button>
+                      {projects.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => { setProjectFilter(p.id); setActiveProjectId(p.id); setMobileSidebarOpen(false); }}
+                          className={`w-full text-left truncate px-2 py-1.5 rounded-lg text-sm transition border-l-2 pl-2 ${projectFilter === p.id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
+                          style={{ borderColor: p.color || '#6B7280' }}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="pt-3 border-t border-gray-800">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Filtrer par tag</p>
+                      {uniqueTags.length === 0 ? (
+                        <p className="text-sm text-gray-500">Aucun tag</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {uniqueTags.map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => { setFilterTag(filterTag === t ? null : t); setMobileSidebarOpen(false); }}
+                              className={`px-2 py-1 rounded-lg text-xs transition ${
+                                filterTag === t ? 'bg-gray-700 text-white' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800'
+                              }`}
+                            >
+                              #{t}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* List view */}
+            {mobileView === 'list' && (
+              <div className="h-full border border-gray-800 rounded-2xl bg-[#1A1A1A] shadow-2xl shadow-black/70 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+                  <button type="button" onClick={() => setMobileSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400" title="Menu">
+                    <Menu className="w-5 h-5" />
+                  </button>
+                  <p className="text-sm text-gray-300">Notes</p>
+                  <div className="w-[72px]" />
+                </div>
+                <NotesViewControls zoomLevel={zoomLevel} onZoomChange={setZoomLevel} />
+                <div className="overflow-y-auto h-full">
+                  {sortedArchives.length === 0 ? (
+                    <div className="h-full flex items-center justify-center p-6">
+                      <div className="text-center">
+                        <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                        <p className="text-gray-500">{searchQuery || filterTag ? 'Aucun résultat' : 'Aucune note pour le moment'}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-800">
+                      {sortedArchives.map((entry) => {
+                        const title = getEntryTitle(entry);
+                        const preview = stripHtml(entry.entry_text || '').slice(0, 120);
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => handleSelectEntry(entry)}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-800/40 transition"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm text-gray-200 truncate">{title}</p>
+                              <p className="text-xs text-gray-500 flex-shrink-0">{new Date(entry.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-1">{preview}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* FAB mobile (inspiration Google Docs) */}
+                <button
+                  type="button"
+                  onClick={handleNewNoteTab}
+                  className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-white text-black shadow-xl shadow-black/40 hover:bg-gray-100 active:scale-[0.98] transition flex items-center justify-center"
+                  title="Nouvelle note"
+                  aria-label="Nouvelle note"
+                >
+                  <Plus className="w-7 h-7" />
+                </button>
+              </div>
+            )}
+
+            {/* Editor view */}
+            {mobileView === 'editor' && (
+              <div className="h-full rounded-2xl border border-gray-800 bg-[#111111] overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+                  <button type="button" onClick={() => setMobileView('list')} className="flex items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-800 text-gray-300" title="Retour">
+                    <ChevronLeft className="w-5 h-5" />
+                    <span className="text-sm">Retour</span>
+                  </button>
+                  <p className="text-sm text-gray-300 truncate">Éditeur</p>
+                  <button type="button" onClick={() => setMobileSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400" title="Menu">
+                    <Menu className="w-5 h-5" />
+                  </button>
+                </div>
+                {/* Réutilise le même contenu éditeur (onglets + editor) déjà rendu dans la colonne droite desktop */}
+                <div className="h-full overflow-y-auto p-4">
+                  {/* On garde l’expérience onglets existante */}
+                  <div className="rounded-2xl border border-gray-800 bg-[#1A1A1A] h-full flex flex-col min-h-0 relative">
+                    <div className="flex items-center border-b border-gray-800 bg-[#141414] flex-shrink-0 overflow-x-auto">
+                      {openTabs.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            if (t.id === 'new') return handleNewNoteTab();
+                            const entry = sortedArchives.find((e) => e.id === t.id) || archives.find((e) => e.id === t.id);
+                            if (entry) handleSelectEntry(entry);
+                            else setActiveTabId(t.id);
+                          }}
+                          className={`group flex items-center gap-2 px-4 py-2 text-sm border-r border-gray-800 min-w-0 transition ${
+                            activeTabId === t.id ? 'bg-[var(--sj-bg-elevated)] text-[#e5e5e5]' : 'text-gray-400 hover:bg-gray-800/40 hover:text-gray-200'
+                          }`}
+                        >
+                          <span className="truncate">{t.id === 'new' ? 'Nouvelle note' : 'Note'}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex-1 overflow-y-auto min-h-0 p-4">
+                      {activeTabId !== 'new' && selectedEntry && !isEditing && (
+                        <EntryViewer
+                          entry={selectedEntry}
+                          onClose={() => { setSelectedEntry(null); setMobileView('list'); }}
+                          onEdit={handleEditEntry}
+                          onDelete={() => handleDeleteEntry(selectedEntry.id)}
+                          onSaveAnnotations={handleSaveAnnotations}
+                          userId={userId}
+                          onOpenMediaSide={openSplitMedia}
+                        />
+                      )}
+
+                      {activeTabId !== 'new' && isEditing && selectedEntry && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col min-h-[70vh] gap-4">
+                          <div className="flex items-center justify-between">
+                            <h2 className="text-base font-medium text-[#e5e5e5]">Modifier la note</h2>
+                            <button type="button" onClick={() => setIsEditing(false)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <RichTextEditor
+                            value={editText}
+                            onChange={setEditText}
+                            placeholder="Contenu de la note..."
+                            minHeight="0"
+                            stickyToolbar
+                            rightSlot={assistantButton}
+                            className="flex-1 min-h-0"
+                            pageAppearance={pageAppearance}
+                            onPageAppearanceChange={setPageAppearance}
+                            annotations={editAnnotations}
+                            onAnnotationsChange={setEditAnnotations}
+                            isMobile={isMobile}
+                            onMentorClick={handleMentorClick}
+                            density={density}
+                            onDensityChange={setDensity}
+                          />
+
+                          <div className="sticky bottom-0 rounded-xl border border-gray-800 bg-white/5 p-4 space-y-3 backdrop-blur">
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Tags</p>
+                              <TagPills tags={editTags} onRemove={(i) => setEditTags((prev) => prev.filter((_, j) => j !== i))} />
+                              <TagInput
+                                value={editTagInput}
+                                onChange={setEditTagInput}
+                                onAdd={(t) => { setEditTags((prev) => (prev.includes(t) ? prev : [...prev, t])); setEditTagInput(''); }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                type="button"
+                                onClick={handleSaveEdit}
+                                disabled={isSaving}
+                                className="px-5 py-3 rounded-xl bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                              >
+                                {isSaving ? 'Enregistrement…' : '💾 Sauvegarder'}
+                              </button>
+                              {lastSavedAt && (
+                                <span className="text-[10px] text-gray-500">Enregistré à {lastSavedAt.toLocaleTimeString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {activeTabId === 'new' && !aiResult && (
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="flex flex-col min-h-[70vh] gap-4">
+                          <div className="rounded-2xl border border-gray-800 bg-[#1a1a1a] overflow-hidden">
+                            <RichTextEditor
+                              value={text}
+                              onChange={setText}
+                              placeholder="Écrivez votre note ici…"
+                              minHeight="0"
+                              disabled={isAnalyzing}
+                              stickyToolbar
+                              rightSlot={assistantButton}
+                              className="flex-1 min-h-0"
+                              pageAppearance={pageAppearance}
+                              onPageAppearanceChange={setPageAppearance}
+                              annotations={newAnnotations}
+                              onAnnotationsChange={setNewAnnotations}
+                              isMobile={isMobile}
+                              onMentorClick={handleMentorClick}
+                              density={density}
+                              onDensityChange={setDensity}
+                            />
+                          </div>
+
+                          <div className="sticky bottom-0 rounded-xl border border-gray-800 bg-white/5 p-4 space-y-3 backdrop-blur">
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Tags</p>
+                              <TagPills tags={currentTags} onRemove={handleRemoveTag} />
+                              <TagInput value={tagInputValue} onChange={setTagInputValue} onAdd={handleAddTag} />
+                            </div>
+                            <MediaPreview media={pendingMedia} onRemove={removePendingMedia} onOpenSide={openSplitMedia} />
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <input ref={scannerInputRef} type="file" accept="image/*" onChange={handleScanManuscript} className="hidden" />
+                                <button type="button" onClick={() => scannerInputRef.current?.click()} disabled={ocrLoading} className="p-2 rounded-lg hover:bg-gray-800 text-gray-500 disabled:opacity-50" title="OCR (photo manuscrite)">
+                                  {ocrLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-5 h-5" />}
+                                </button>
+                                <input ref={attachmentInputRef} type="file" accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" multiple onChange={handleAttachmentUpload} className="hidden" />
+                                <button type="button" onClick={() => attachmentInputRef.current?.click()} className="p-2 rounded-lg hover:bg-gray-800 text-gray-500" title="Pièce jointe">
+                                  <Paperclip className="w-5 h-5" />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={handleManualSaveNew}
+                                  disabled={isSaving || !stripHtml(text).trim()}
+                                  className="px-5 py-3 rounded-xl bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                >
+                                  {isSaving ? 'Enregistrement…' : '💾 Sauvegarder'}
+                                </button>
+                                {lastSavedAt && (
+                                  <span className="text-[10px] text-gray-500">Enregistré à {lastSavedAt.toLocaleTimeString()}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : focusMode ? (
           <div className="m-6 mt-0 h-full rounded-2xl border border-gray-800 bg-[#1A1A1A] overflow-hidden">
             {/* Panneau éditeur plein écran */}
             <div className="h-full flex flex-col min-h-0">
@@ -1098,8 +1468,10 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                         entry={selectedEntry}
                         onClose={() => setSelectedEntry(null)}
                         onEdit={handleEditEntry}
+                        onDelete={() => handleDeleteEntry(selectedEntry.id)}
                         onSaveAnnotations={handleSaveAnnotations}
                         userId={userId}
+                        onOpenMediaSide={openSplitMedia}
                       />
                     )}
                     {activeTabId !== 'new' && isEditing && selectedEntry && (
@@ -1117,6 +1489,13 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                           minHeight="520px"
                           stickyToolbar
                           rightSlot={assistantButton}
+                          pageAppearance={pageAppearance}
+                          onPageAppearanceChange={setPageAppearance}
+                          annotations={editAnnotations}
+                          onAnnotationsChange={setEditAnnotations}
+                          isMobile={isMobile}
+                          density={density}
+                          onDensityChange={setDensity}
                         />
                         {/* Métadonnées en bas */}
                         <div className="rounded-2xl border border-gray-800 bg-white/5 p-6 space-y-4">
@@ -1147,7 +1526,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                     )}
                     {activeTabId === 'new' && !aiResult && (
                       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-4">
-                        <div className="rounded-2xl border border-gray-800 bg-[#1a1a1a] overflow-hidden">
+                        <div className="rounded-2xl bg-[#1a1a1a] overflow-hidden">
                           <RichTextEditor
                             value={text}
                             onChange={setText}
@@ -1156,6 +1535,13 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                             disabled={isAnalyzing}
                             stickyToolbar
                             rightSlot={assistantButton}
+                            pageAppearance={pageAppearance}
+                            onPageAppearanceChange={setPageAppearance}
+                            annotations={newAnnotations}
+                            onAnnotationsChange={setNewAnnotations}
+                            isMobile={isMobile}
+                            density={density}
+                            onDensityChange={setDensity}
                           />
                         </div>
                         <div className="rounded-2xl border border-gray-800 bg-white/5 p-6 space-y-4">
@@ -1164,7 +1550,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                             <TagPills tags={currentTags} onRemove={handleRemoveTag} />
                             <TagInput value={tagInputValue} onChange={setTagInputValue} onAdd={handleAddTag} />
                           </div>
-                          <MediaPreview media={pendingMedia} onRemove={removePendingMedia} />
+                          <MediaPreview media={pendingMedia} onRemove={removePendingMedia} onOpenSide={openSplitMedia} />
                           <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
                               <input ref={scannerInputRef} type="file" accept="image/*" onChange={handleScanManuscript} className="hidden" />
@@ -1295,7 +1681,53 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
           {/* Liste centrale (flottante) */}
           <Panel defaultSize={35} minSize={20}>
             <div className="m-6 mt-0 h-full border border-gray-800 rounded-2xl bg-[#1A1A1A] shadow-2xl shadow-black/70 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-800 text-sm text-gray-400">Notes</div>
+              <div className="sticky top-0 z-10 backdrop-blur-md bg-[#1A1A1A]/80">
+                <div className="px-4 py-3 border-b border-gray-800 text-sm text-gray-300 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="truncate">Notes</span>
+                    <button
+                      type="button"
+                      onClick={handleNewNoteTab}
+                      className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white text-black font-semibold shadow-lg shadow-black/30 hover:bg-gray-100 active:scale-[0.99] transition"
+                      title="Créer une nouvelle note"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Créer
+                    </button>
+                  </div>
+                  {/* "Échelle" supprimé */}
+                </div>
+                <div className="px-4 pb-3 border-b border-gray-800">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Rechercher dans les notes…"
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#111111] border border-gray-800 text-sm text-[#e5e5e5] placeholder-gray-500 focus:outline-none focus:border-gray-600"
+                    />
+                  </div>
+                </div>
+                <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between gap-3">
+                  <div className="flex gap-1">
+                    {['recent', 'oldest', 'custom'].map((order) => (
+                      <button
+                        key={order}
+                        type="button"
+                        onClick={() => setSortOrder(order)}
+                        className={`px-3 py-1.5 rounded-lg text-xs transition ${
+                          sortOrder === order ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        {order === 'recent' ? 'Récent' : order === 'oldest' ? 'Ancien' : 'Manuel'}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-600 hidden md:inline">Alt+Clic : ouvrir à côté</span>
+                </div>
+                <NotesViewControls zoomLevel={zoomLevel} onZoomChange={setZoomLevel} className="border-b-0" />
+              </div>
               <div className="overflow-y-auto h-full">
                 {sortedArchives.length === 0 ? (
                   <div className="h-full flex items-center justify-center p-6">
@@ -1305,28 +1737,59 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                     </div>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-800">
-                    {sortedArchives.map((entry) => {
-                      const title = getEntryTitle(entry);
-                      const preview = stripHtml(entry.entry_text || '').slice(0, 120);
-                      return (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          onClick={() => handleSelectEntry(entry)}
-                          className={`w-full text-left px-4 py-3 hover:bg-gray-800/40 transition ${
-                            selectedEntry?.id === entry.id ? 'bg-gray-800/30' : ''
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm text-gray-200 truncate">{title}</p>
-                            <p className="text-xs text-gray-500 flex-shrink-0">{new Date(entry.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1 line-clamp-1">{preview}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  zoomLevel >= 70 ? (
+                    <div className="divide-y divide-gray-800">
+                      {sortedArchives.map((entry) => {
+                        const title = getEntryTitle(entry);
+                        const preview = stripHtml(entry.entry_text || '').slice(0, 120);
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={(e) => {
+                              if (e.altKey) openSplitNote(entry.id);
+                              else handleSelectEntry(entry);
+                            }}
+                            className={`w-full text-left px-4 py-3 hover:bg-gray-800/40 transition ${
+                              selectedEntry?.id === entry.id ? 'bg-gray-800/30' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm text-gray-200 truncate">{title}</p>
+                              <p className="text-xs text-gray-500 flex-shrink-0">{new Date(entry.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-1">{preview}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className={`p-4 grid gap-3 ${getGridCols()}`}>
+                      {sortedArchives.map((entry) => {
+                        const title = getEntryTitle(entry);
+                        const preview = stripHtml(entry.entry_text || '').slice(0, 140);
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={(e) => {
+                              if (e.altKey) openSplitNote(entry.id);
+                              else handleSelectEntry(entry);
+                            }}
+                            className={`text-left rounded-xl border border-gray-800 bg-[#111111] hover:bg-[#141414] transition p-4 ${
+                              selectedEntry?.id === entry.id ? 'ring-1 ring-gray-600' : ''
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-sm text-gray-200 font-medium line-clamp-2">{title}</p>
+                              <p className="text-[10px] text-gray-500 flex-shrink-0 mt-0.5">{new Date(entry.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2 line-clamp-3">{preview}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
                 )}
               </div>
             </div>
@@ -1335,7 +1798,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
 
           {/* Éditeur (concret, ancré) */}
           <Panel defaultSize={45} minSize={30}>
-            <div className="m-6 mt-0 h-full rounded-2xl border border-gray-800 bg-[#111111] overflow-hidden">
+            <div className="m-6 mt-0 h-full rounded-2xl border border-gray-800 bg-[#111111] overflow-hidden relative">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#111111]">
                 <p className="text-sm text-gray-400 truncate">{focusMode ? 'Mode Focus' : 'Éditeur'}</p>
                 <button
@@ -1347,7 +1810,11 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                   <Maximize2 className="w-5 h-5" />
                 </button>
               </div>
-              <div className="h-full overflow-y-auto p-6">
+              <div className="h-full">
+              {!isMobile && splitView ? (
+                <PanelGroup direction="horizontal" className="h-full">
+                  <Panel defaultSize={62} minSize={35}>
+                    <div className="h-full overflow-y-auto p-0">
                 <AnimatePresence mode="wait">
                   {mainView === 'journal' && openTabs.length > 0 && (
                     <motion.div
@@ -1391,8 +1858,10 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                     entry={selectedEntry}
                     onClose={() => setSelectedEntry(null)}
                     onEdit={handleEditEntry}
+                                    onDelete={() => handleDeleteEntry(selectedEntry.id)}
                     onSaveAnnotations={handleSaveAnnotations}
                     userId={userId}
+                    onOpenMediaSide={openSplitMedia}
                   />
                 )}
 
@@ -1412,6 +1881,14 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                       stickyToolbar
                       rightSlot={assistantButton}
                       className="flex-1 min-h-0"
+                      pageAppearance={pageAppearance}
+                      onPageAppearanceChange={setPageAppearance}
+                      annotations={editAnnotations}
+                      onAnnotationsChange={setEditAnnotations}
+                      isMobile={isMobile}
+                      onMentorClick={handleMentorClick}
+                      density={density}
+                      onDensityChange={setDensity}
                     />
 
                     <div>
@@ -1478,8 +1955,8 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                 )}
 
                 {activeTabId === 'new' && !aiResult && (
-                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="flex flex-col min-h-[calc(100vh-360px)] gap-4">
-                    <div className="rounded-2xl border border-gray-800 bg-[#1a1a1a] overflow-hidden">
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="flex flex-col min-h-[calc(100vh-360px)] gap-4 px-6 py-6">
+                    <div className="rounded-2xl bg-[#1a1a1a] overflow-hidden flex flex-col min-h-0">
                       <RichTextEditor
                         value={text}
                         onChange={setText}
@@ -1489,6 +1966,14 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                         stickyToolbar
                         rightSlot={assistantButton}
                         className="flex-1 min-h-0"
+                        pageAppearance={pageAppearance}
+                        onPageAppearanceChange={setPageAppearance}
+                        annotations={newAnnotations}
+                        onAnnotationsChange={setNewAnnotations}
+                        isMobile={isMobile}
+                        onMentorClick={handleMentorClick}
+                        density={density}
+                        onDensityChange={setDensity}
                       />
                     </div>
 
@@ -1500,7 +1985,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                         <TagInput value={tagInputValue} onChange={setTagInputValue} onAdd={handleAddTag} />
                       </div>
 
-                      <MediaPreview media={pendingMedia} onRemove={removePendingMedia} />
+                      <MediaPreview media={pendingMedia} onRemove={removePendingMedia} onOpenSide={openSplitMedia} />
 
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-2">
@@ -1653,7 +2138,164 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                     </motion.div>
                   )}
                 </AnimatePresence>
+                    </div>
+                  </Panel>
+                  <PanelResizeHandle className="w-1 flex items-center justify-center">
+                    <div className="w-px h-8 bg-gray-800/80" />
+                  </PanelResizeHandle>
+                  <Panel defaultSize={38} minSize={25}>
+                    <div className="h-full bg-[#0f0f0f] border-l border-gray-800 relative">
+                      <button
+                        type="button"
+                        onClick={() => setSplitView(null)}
+                        className="absolute top-3 right-3 z-10 p-2 rounded-lg bg-black/40 border border-white/10 text-gray-200 hover:bg-black/60 transition"
+                        title="Fermer le Split View"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      {splitView?.type === 'media' ? (
+                        <MediaViewer media={splitView.media} />
+                      ) : splitView?.type === 'note' ? (
+                        <SplitNoteEditor
+                          userId={userId}
+                          entryId={splitView.entryId}
+                          onClose={() => setSplitView(null)}
+                          density={density}
+                          isMobile={isMobile}
+                        />
+                      ) : null}
+                    </div>
+                  </Panel>
+                </PanelGroup>
+              ) : (
+              <div className="h-full overflow-y-auto p-0">
+                <AnimatePresence mode="wait">
+                  {mainView === 'journal' && openTabs.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      className="h-full"
+                    >
+                      <div className="rounded-2xl border border-gray-800 bg-[#1A1A1A] h-full flex flex-col min-h-0">
+                        {/* Tabs (style VS Code) */}
+                        <div className="flex items-center border-b border-gray-800 bg-[#141414] flex-shrink-0 overflow-x-auto">
+                          {openTabs.map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => (t.id === 'new' ? handleNewNoteTab() : setActiveTabId(t.id))}
+                              className={`group flex items-center gap-2 px-4 py-2 text-sm border-r border-gray-800 min-w-0 transition ${
+                                activeTabId === t.id ? 'bg-[var(--sj-bg-elevated)] text-[#e5e5e5]' : 'text-gray-400 hover:bg-gray-800/40 hover:text-gray-200'
+                              }`}
+                            >
+                              <span className="truncate">{t.id === 'new' ? 'Nouvelle note' : 'Note'}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex-1 overflow-y-auto min-h-0 p-6">
+                          {activeTabId !== 'new' && selectedEntry && !isEditing && (
+                            <EntryViewer
+                              entry={selectedEntry}
+                              onClose={() => setSelectedEntry(null)}
+                              onEdit={handleEditEntry}
+                              onDelete={() => handleDeleteEntry(selectedEntry.id)}
+                              onSaveAnnotations={handleSaveAnnotations}
+                              userId={userId}
+                              onOpenMediaSide={openSplitMedia}
+                            />
+                          )}
+                          {activeTabId !== 'new' && isEditing && selectedEntry && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col min-h-[calc(100vh-360px)] gap-4">
+                              <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-medium text-[#e5e5e5]">Modifier la note</h2>
+                                <button type="button" onClick={() => setIsEditing(false)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <RichTextEditor
+                                value={editText}
+                                onChange={setEditText}
+                                placeholder="Contenu de la note..."
+                                minHeight="0"
+                                stickyToolbar
+                                rightSlot={assistantButton}
+                                className="flex-1 min-h-0"
+                                pageAppearance={pageAppearance}
+                                onPageAppearanceChange={setPageAppearance}
+                                annotations={editAnnotations}
+                                onAnnotationsChange={setEditAnnotations}
+                                isMobile={isMobile}
+                                onMentorClick={handleMentorClick}
+                                density={density}
+                                onDensityChange={setDensity}
+                              />
+                            </motion.div>
+                          )}
+                          {activeTabId === 'new' && !aiResult && (
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="flex flex-col min-h-[calc(100vh-360px)] gap-4">
+                              <div className="rounded-2xl bg-[#1a1a1a] overflow-hidden flex flex-col min-h-0">
+                                <RichTextEditor
+                                  value={text}
+                                  onChange={setText}
+                                  placeholder="Écrivez votre note ici…"
+                                  minHeight="0"
+                                  disabled={isAnalyzing}
+                                  stickyToolbar
+                                  rightSlot={assistantButton}
+                                  className="flex-1 min-h-0"
+                                  pageAppearance={pageAppearance}
+                                  onPageAppearanceChange={setPageAppearance}
+                                  annotations={newAnnotations}
+                                  onAnnotationsChange={setNewAnnotations}
+                                  isMobile={isMobile}
+                                  onMentorClick={handleMentorClick}
+                                  density={density}
+                                  onDensityChange={setDensity}
+                                />
+                              </div>
+                              <div className="sticky bottom-0 rounded-xl border border-gray-800 bg-white/5 p-4 space-y-3 backdrop-blur">
+                                <div>
+                                  <p className="text-xs text-gray-500 mb-1">Tags</p>
+                                  <TagPills tags={currentTags} onRemove={handleRemoveTag} />
+                                  <TagInput value={tagInputValue} onChange={setTagInputValue} onAdd={handleAddTag} />
+                                </div>
+                                <MediaPreview media={pendingMedia} onRemove={removePendingMedia} onOpenSide={openSplitMedia} />
+                                <div className="flex items-center justify-end gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={handleManualSaveNew}
+                                    disabled={isSaving || !stripHtml(text).trim()}
+                                    className="px-4 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                  >
+                                    {isSaving ? 'Enregistrement…' : '💾 Sauvegarder'}
+                                  </button>
+                                  {lastSavedAt && (
+                                    <span className="text-[10px] text-gray-500">Enregistré à {lastSavedAt.toLocaleTimeString()}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
+              )}
+              </div>
+
+              <MentorPanel
+                open={mentorOpen}
+                onClose={() => setMentorOpen(false)}
+                isMobile={isMobile}
+                contextText={mentorContext}
+                onContextChange={setMentorContext}
+                onRequestAdvice={requestMentorAdvice}
+                loading={mentorLoading}
+                advice={mentorAdvice}
+              />
             </div>
           </Panel>
         </PanelGroup>
@@ -1709,6 +2351,8 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
           </label>
         </div>
       )}
+
+      <MentorUpsellModal open={mentorUpsellOpen} onClose={() => setMentorUpsellOpen(false)} />
     </div>
   );
 }

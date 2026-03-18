@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Key, Mail, Trash2, Package, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
@@ -7,7 +7,7 @@ import { generateDataArchive } from '../utils/exportArchive';
 /**
  * Paramètres du compte : mot de passe, email, visibilité Forêt, export archive, supprimer le compte.
  */
-export default function VueParametres({ onBack, userId, canActivatePublic, isPublic, onToggleForest, refetch }) {
+export default function VueParametres({ onBack, userId, profile, canActivatePublic, isPublic, onToggleForest, refetch }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -16,6 +16,12 @@ export default function VueParametres({ onBack, userId, canActivatePublic, isPub
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState({ type: '', text: '' });
+  const [premiumSim, setPremiumSim] = useState(false);
+  const [premiumLoading, setPremiumLoading] = useState(false);
+
+  useEffect(() => {
+    setPremiumSim(profile?.is_premium === true);
+  }, [profile?.is_premium]);
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
@@ -191,6 +197,55 @@ export default function VueParametres({ onBack, userId, canActivatePublic, isPub
         >
           {deleteLoading ? 'Suppression...' : 'Supprimer définitivement mon compte'}
         </button>
+      </section>
+
+      {/* Simulation Premium (Stripe à venir) */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <h2 className="font-serif text-lg font-bold text-gray-50 mb-3">🛠️ Zone Développeur (Simulation)</h2>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm text-gray-200">Activer le mode Premium</p>
+            <p className="text-xs text-gray-500">
+              Active/désactive l’accès Premium pour tester le paywall (Stripe sera branché plus tard).
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!userId || premiumLoading}
+            onClick={async () => {
+              if (!userId || !supabase) return;
+              const next = !premiumSim;
+              setPremiumLoading(true);
+              try {
+                const { error } = await supabase.from('profiles').update({ is_premium: next }).eq('id', userId);
+                if (error) throw error;
+                setPremiumSim(next);
+                refetch?.();
+              } catch (err) {
+                const msg = err?.message || 'Erreur lors de la mise à jour du mode Premium.';
+                if (String(msg).includes("Could not find the 'is_premium' column")) {
+                  setMessage({ type: 'error', text: "La colonne profiles.is_premium n'existe pas encore côté Supabase. Exécute la migration `supabase-migrations-premium-simulator.sql` puis réessaie." });
+                } else {
+                  setMessage({ type: 'error', text: msg });
+                }
+              } finally {
+                setPremiumLoading(false);
+              }
+            }}
+            className={`relative inline-flex h-9 w-16 flex-shrink-0 items-center rounded-full border transition ${
+              premiumSim ? 'bg-emerald-500/25 border-emerald-400/40' : 'bg-[#0d1211] border-white/10'
+            } ${premiumLoading ? 'opacity-60' : ''}`}
+            aria-pressed={premiumSim}
+            aria-label="Activer le mode Premium"
+            title="Simulation Premium"
+          >
+            <span
+              className={`inline-block h-7 w-7 transform rounded-full bg-white shadow transition ${
+                premiumSim ? 'translate-x-8' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
       </section>
 
       {onBack && (

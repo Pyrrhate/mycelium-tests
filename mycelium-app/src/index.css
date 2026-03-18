@@ -25,6 +25,31 @@
   --sj-border: 1px solid rgb(38 38 38);
 }
 
+/* Thèmes (via classe sur <html>) */
+.theme-dark {
+  --bg-main: #0A0A0A;
+  --bg-elevated: #1A1A1A;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --text-main: #e5e5e5;
+  --text-muted: #9ca3af;
+  --accent: #f9fafb;
+  --sj-bg: #1a1a1a;
+  --sj-bg-elevated: #222222;
+  --sj-border: 1px solid rgb(38 38 38);
+}
+
+.theme-light {
+  --bg-main: #f6f6f6;
+  --bg-elevated: #ffffff;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --text-main: #0b0b0b;
+  --text-muted: #4b5563;
+  --accent: #0b0b0b;
+  --sj-bg: #ffffff;
+  --sj-bg-elevated: #f3f4f6;
+  --sj-border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 /* Zone Smart Journal : fond gris foncé, bordures fines */
 .smart-journal-page {
   background-color: var(--sj-bg);
@@ -41,6 +66,48 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+/* IA proofreading : surbrillance légère de la sélection pendant traitement */
+.sj-proofreading-selection {
+  opacity: 0.65;
+  background: rgba(16, 185, 129, 0.12);
+  border-radius: 4px;
+}
+
+/* Apparence de la "page" (fond d'écriture) */
+.sj-page-surface {
+  border-radius: 0.75rem;
+}
+
+.sj-page-default {
+  background: transparent;
+}
+
+.sj-page-grain {
+  position: relative;
+  background: transparent;
+}
+.sj-page-grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+}
+
+.sj-page-lines {
+  background-image: linear-gradient(to bottom, rgba(127, 127, 127, 0.12) 1px, transparent 1px);
+  background-size: 100% 28px;
+}
+
+.sj-page-dots {
+  background-image: radial-gradient(rgba(127, 127, 127, 0.18) 1px, transparent 1px);
+  background-size: 18px 18px;
+  background-position: 0 2px;
 }
 
 /* Polices : Serif titres, Monospace champs */

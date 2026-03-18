@@ -11,20 +11,34 @@ export function useInitiationStatus(userId) {
   const [loading, setLoading] = useState(!!userId);
   const [error, setError] = useState(null);
 
-  const fetchProfile = () => {
+  const fetchProfile = async () => {
     if (!supabase || !userId) return;
     setLoading(true);
     setError(null);
-    supabase
-      .from('profiles')
-      .select('initiation_step, test_mycelium_completed, test_totem_completed, is_public, public_constellation, slug, xp_seve, element_primordial, totem, constellation_data, constellation_result, symbiose_points, initiate_name, resonance_month_year, cognitive_title, has_completed_onboarding, unlocked_seals, narrative_roots, ai_credits')
-      .eq('id', userId)
-      .single()
-      .then(({ data, error: e }) => {
+    const baseSelect = 'initiation_step, test_mycelium_completed, test_totem_completed, is_public, public_constellation, slug, xp_seve, element_primordial, totem, constellation_data, constellation_result, symbiose_points, initiate_name, resonance_month_year, cognitive_title, has_completed_onboarding, unlocked_seals, narrative_roots, ai_credits';
+    try {
+      const { data, error: e } = await supabase
+        .from('profiles')
+        .select(`${baseSelect}, is_premium`)
+        .eq('id', userId)
+        .single();
+
+      if (e?.message && e.message.includes("Could not find the 'is_premium' column")) {
+        // Migration pas encore appliquée : fallback propre (is_premium = false)
+        const { data: fallback, error: e2 } = await supabase
+          .from('profiles')
+          .select(baseSelect)
+          .eq('id', userId)
+          .single();
+        setError(e2?.message || null);
+        setProfile(fallback ? { ...fallback, is_premium: false } : null);
+      } else {
         setError(e?.message || null);
         setProfile(data || null);
-      })
-      .finally(() => setLoading(false));
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
