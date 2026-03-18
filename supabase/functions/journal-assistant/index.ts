@@ -3,11 +3,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
+const BASE_SYSTEM_PROMPT =
+  "Tu es un Assistant de Productivité et un Second Cerveau analytique. Ton rôle est d'aider l'utilisateur à structurer sa pensée, résumer ses notes, extraire des tâches (to-do) et faire des liens logiques. Adopte un ton neutre, clair, professionnel et concis. Formate toujours tes réponses en Markdown.";
+
 const ACTION_PROMPTS: Record<string, string> = {
-  résumer: 'Fais un résumé très concis de cette note en 3 bullet points. Réponds uniquement avec le résumé, sans introduction.',
-  tâches: 'Extrais toutes les actions ou tâches mentionnées dans le texte et renvoie une liste à cocher markdown (ex: "- [ ] Tâche 1"). Réponds uniquement avec la liste.',
-  réflexion: 'Agis comme un coach neutre. Lis la note, souligne un schéma psychologique intéressant, et pose une question ouverte pour aider l\'auteur à avancer. Réponds en 2 courtes phrases puis la question.',
-  tags: 'Renvoie uniquement un tableau JSON de 3 à 5 tags (un seul mot chacun) pertinents pour classer cette note. Format: ["tag1","tag2","tag3"]. Pas d\'autre texte.',
+  résumer:
+    'Ta tâche : résumer la note ci-dessous en 3 bullet points très concis. Réponds uniquement avec le résumé, sans introduction.',
+  tâches:
+    'Ta tâche : extraire toutes les actions ou tâches explicites ou implicites de la note ci-dessous, et renvoyer une liste à cocher en Markdown (ex: "- [ ] Tâche 1"). Réponds uniquement avec la liste.',
+  réflexion:
+    "Ta tâche : lire la note ci-dessous, souligner un schéma ou enjeu intéressant, puis proposer une courte réflexion et une question ouverte pour aider l'auteur à avancer. Réponds en 2 phrases maximum, puis une question.",
+  tags:
+    'Ta tâche : proposer 3 à 5 tags (un seul mot chacun) pertinents pour classer la note ci-dessous. Réponds uniquement avec un tableau JSON de chaînes. Format: ["tag1","tag2","tag3"]. Pas d\'autre texte.',
 };
 
 const corsHeaders = {
@@ -53,7 +60,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const systemPrompt = ACTION_PROMPTS[actionType] || ACTION_PROMPTS.résumer;
+    const taskInstruction = ACTION_PROMPTS[actionType] || ACTION_PROMPTS.résumer;
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -111,8 +118,13 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         model: 'claude-3-haiku-20240307',
         max_tokens: 800,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: noteText }],
+        system: BASE_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: `${taskInstruction}\n\n---\n\nNOTE À ANALYSER :\n${noteText}`,
+          },
+        ],
       }),
     });
 

@@ -1,7 +1,6 @@
 /**
- * Codex de Secours — Le Mycélium Offline
- * Réponses pré-générées pour chaque élément alchimique.
- * Utilisé quand Claude est indisponible ou en mode mock.
+ * Codex de secours offline
+ * Réponses pré-générées par tonalité émotionnelle, utilisées uniquement en fallback local.
  */
 
 export const MYCELIUM_CODEX = {
@@ -13,7 +12,7 @@ export const MYCELIUM_CODEX = {
         reflection: 'Cette flamme intérieure, cherche-t-elle à détruire ou à illuminer votre chemin ?',
       },
       {
-        quote: '« Le feu qui brûle en toi peut réchauffer le monde ou le consumer. Le choix t\'appartient. » — Sagesse du Mycélium',
+        quote: '« Le feu qui brûle en toi peut réchauffer le monde ou le consumer. Le choix t\'appartient. »',
         reflection: 'Qu\'est-ce qui nourrit ce feu en vous ? Et vers quoi souhaitez-vous le diriger ?',
       },
       {
@@ -30,7 +29,7 @@ export const MYCELIUM_CODEX = {
         reflection: 'Qu\'est-ce que ces eaux profondes en vous cherchent à nettoyer ou à révéler ?',
       },
       {
-        quote: '« Les larmes sont la pluie de l\'âme. Elles font pousser ce qui doit grandir. » — Sagesse du Mycélium',
+        quote: '« Les larmes sont la pluie de l\'âme. Elles font pousser ce qui doit grandir. »',
         reflection: 'Quelle partie de vous demande à être vue et reconnue dans cette tristesse ?',
       },
       {
@@ -47,7 +46,7 @@ export const MYCELIUM_CODEX = {
         reflection: 'Votre corps vous parle — êtes-vous prêt à l\'écouter sans jugement ?',
       },
       {
-        quote: '« Parfois, s\'arrêter est la forme la plus courageuse d\'avancer. » — Sagesse du Mycélium',
+        quote: '« Parfois, s\'arrêter est la forme la plus courageuse d\'avancer. »',
         reflection: 'Qu\'est-ce que vous vous interdisez de lâcher pour enfin vous reposer ?',
       },
       {
@@ -64,7 +63,7 @@ export const MYCELIUM_CODEX = {
         reflection: 'Parmi toutes ces pensées qui tourbillonnent, laquelle mérite vraiment votre attention ?',
       },
       {
-        quote: '« L\'anxiété est l\'ombre de l\'avenir projetée sur le présent. » — Sagesse du Mycélium',
+        quote: '« L\'anxiété est l\'ombre de l\'avenir projetée sur le présent. »',
         reflection: 'Qu\'est-ce qui se passerait si vous acceptiez de ne pas tout contrôler ?',
       },
       {
@@ -81,7 +80,7 @@ export const MYCELIUM_CODEX = {
         reflection: 'Cette énergie de renouveau, comment souhaitez-vous la cultiver dans votre quotidien ?',
       },
       {
-        quote: '« Chaque jour est une page blanche où écrire une nouvelle histoire. » — Sagesse du Mycélium',
+        quote: '« Chaque jour est une page blanche où écrire une nouvelle histoire. »',
         reflection: 'Quelle graine souhaitez-vous planter aujourd\'hui pour votre futur ?',
       },
       {
@@ -98,7 +97,7 @@ export const MYCELIUM_CODEX = {
         reflection: 'Qu\'est-ce que vous devez laisser partir pour avancer plus léger ?',
       },
       {
-        quote: '« Le vrai courage n\'est pas de tenir, mais parfois de savoir lâcher. » — Sagesse du Mycélium',
+        quote: '« Le vrai courage n\'est pas de tenir, mais parfois de savoir lâcher. »',
         reflection: 'Quelle décision avez-vous retardée par peur de ses conséquences ?',
       },
       {

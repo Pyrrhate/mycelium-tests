@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Key, Mail, Trash2 } from 'lucide-react';
+import { Settings, Key, Mail, Trash2, Package, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { generateDataArchive } from '../utils/exportArchive';
 
 /**
- * Paramètres du compte : mot de passe, email, visibilité Forêt, supprimer le compte.
+ * Paramètres du compte : mot de passe, email, visibilité Forêt, export archive, supprimer le compte.
  */
 export default function VueParametres({ onBack, userId, canActivatePublic, isPublic, onToggleForest, refetch }) {
   const [email, setEmail] = useState('');
@@ -13,6 +14,8 @@ export default function VueParametres({ onBack, userId, canActivatePublic, isPub
   const [loading, setLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState({ type: '', text: '' });
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
@@ -63,6 +66,20 @@ export default function VueParametres({ onBack, userId, canActivatePublic, isPub
       setMessage({ type: 'error', text: err?.message || 'La suppression du compte nécessite une configuration serveur (RPC delete_user). Contactez le support.' });
     }
     setDeleteLoading(false);
+  };
+
+  const handleGenerateArchive = async () => {
+    if (!userId) return;
+    setIsExporting(true);
+    setExportMessage({ type: '', text: '' });
+    try {
+      await generateDataArchive(userId);
+      setExportMessage({ type: 'success', text: 'Archive téléchargée avec succès.' });
+    } catch (err) {
+      setExportMessage({ type: 'error', text: err?.message || 'Erreur lors de la génération de l\'archive.' });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -116,6 +133,39 @@ export default function VueParametres({ onBack, userId, canActivatePublic, isPub
             {loading ? 'Envoi...' : 'Modifier l\'email'}
           </button>
         </form>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <h2 className="font-serif text-lg font-bold text-gray-50 mb-4 flex items-center gap-2">
+          <Package className="w-5 h-5" />
+          Propriété de vos données
+        </h2>
+        <p className="text-gray-300 text-sm mb-4">
+          Vos pensées vous appartiennent. Téléchargez une archive complète de vos notes et projets à tout moment pour la conserver sur votre propre disque dur ou Cloud.
+        </p>
+        <button
+          type="button"
+          onClick={handleGenerateArchive}
+          disabled={isExporting}
+          className="px-4 py-3 rounded-xl bg-gray-700 border border-gray-600 text-gray-50 font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Compilation de votre cerveau numérique en cours...
+            </>
+          ) : (
+            <>
+              <Package className="w-5 h-5" />
+              Générer mon archive (.zip)
+            </>
+          )}
+        </button>
+        {exportMessage.text && (
+          <p className={`mt-3 text-sm ${exportMessage.type === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>
+            {exportMessage.text}
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl border border-red-900/30 bg-red-950/10 p-6 backdrop-blur-xl">

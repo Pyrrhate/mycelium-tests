@@ -1,18 +1,25 @@
 @import "tailwindcss";
 
-/* Design system : mode sombre épuré (Smart Journal) + fallback accent */
+/* Design system : Smart Journal / Second Cerveau — mode sombre professionnel */
 :root {
   font-family: 'Inter', 'Roboto', system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #e5e5e5;
-  background-color: #111111;
+  color: var(--text-main);
+  background-color: var(--bg-main);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --accent: #D4AF37;
+  /* Design system centralisé */
+  --bg-main: #0A0A0A;
+  --bg-elevated: #1A1A1A;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --text-main: #e5e5e5;
+  --text-muted: #9ca3af;
+  --accent: #f9fafb;
+  /* Legacy / compat */
+  --accent-gold: #D4AF37;
   --accent-rgb: 212, 175, 55;
-  /* Smart Journal : fond et bordures neutres */
   --sj-bg: #1a1a1a;
   --sj-bg-elevated: #222222;
   --sj-border: 1px solid rgb(38 38 38);

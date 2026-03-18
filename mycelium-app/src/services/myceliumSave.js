@@ -293,10 +293,10 @@ export async function getLastIntelligenceResult(userId) {
 }
 
 /**
- * Journal de Sève : crée une entrée et retourne l'entrée avec id.
+ * Journal : crée une entrée et retourne l'entrée avec id.
  * primary_emotion : stocké dans detected_element si fourni (ex. calme, energie, clarte).
  */
-export async function saveJournalEntry(userId, { entry_text, detected_element, assigned_quest_id, primary_emotion }) {
+export async function saveJournalEntry(userId, { entry_text, detected_element, assigned_quest_id, primary_emotion, tags, project_id }) {
   if (!supabase || !userId || !entry_text?.trim()) return null;
   const { data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
@@ -305,8 +305,10 @@ export async function saveJournalEntry(userId, { entry_text, detected_element, a
       entry_text: entry_text.trim(),
       detected_element: primary_emotion ?? detected_element ?? null,
       assigned_quest_id: assigned_quest_id ?? null,
+      tags: Array.isArray(tags) ? tags : [],
+      project_id: project_id || null,
     })
-    .select('id, created_at, assigned_quest_id, detected_element, entry_text')
+    .select('id, created_at, assigned_quest_id, detected_element, entry_text, tags, project_id')
     .single();
   if (error) {
     console.warn('Mycélium saveJournalEntry:', error.message);
@@ -369,6 +371,18 @@ export async function getJournalEntries(userId, limit = 50, projectId = null) {
   if (projectId) q = q.eq('project_id', projectId);
   const { data } = await q;
   return data ?? [];
+}
+
+export async function getJournalEntryById(userId, entryId) {
+  if (!supabase || !userId || !entryId) return null;
+  const { data, error } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .select('id, entry_text, detected_element, ai_element, tags, annotations, project_id, created_at')
+    .eq('id', entryId)
+    .eq('user_id', userId)
+    .single();
+  if (error) return null;
+  return data;
 }
 
 // ========================================================================
@@ -442,6 +456,35 @@ export async function deleteProject(userId, projectId) {
  */
 export async function getJournalEntriesForExplorer(userId, { projectId = null, limit = 200 } = {}) {
   return getJournalEntries(userId, limit, projectId || undefined);
+}
+
+/**
+ * Agrégat de tous les fichiers/médias attachés aux notes d'un projet.
+ * @returns {Promise<Array<{ url, type, name, entryId, createdAt }>>}
+ */
+export async function getProjectMedia(userId, projectId) {
+  if (!supabase || !userId || !projectId) return [];
+  const { data: entries } = await supabase
+    .from(TABLE_USER_JOURNAL)
+    .select('id, media_urls, created_at')
+    .eq('user_id', userId)
+    .eq('project_id', projectId);
+  if (!entries?.length) return [];
+  const out = [];
+  for (const entry of entries) {
+    const urls = entry.media_urls;
+    if (!Array.isArray(urls) || urls.length === 0) continue;
+    const createdAt = entry.created_at || '';
+    for (const m of urls) {
+      const url = typeof m === 'string' ? m : m?.url;
+      if (!url) continue;
+      const type = typeof m === 'object' && m?.type ? m.type : (url.match(/\.(pdf|docx?|txt|md)$/i) ? 'file' : 'image');
+      const name = typeof m === 'object' && m?.name ? m.name : url.split('/').pop() || 'Fichier';
+      out.push({ url, type: type || 'file', name, entryId: entry.id, createdAt });
+    }
+  }
+  out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return out;
 }
 
 /**

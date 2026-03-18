@@ -4,13 +4,16 @@ import {
   Sparkles, Loader2, Feather, Quote, HelpCircle, BookOpen,
   Pin, Pencil, Trash2, X, Search, Image, Mic, Video, ZoomIn, ZoomOut, StickyNote,
   Download, FileText, FileDown, ChevronDown, ListTodo, Brain, Tag, ScanLine, Paperclip,
-  FolderOpen, Plus
+  FolderOpen, Plus, Maximize2, Minimize2
 } from 'lucide-react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import ExplorerView from './ExplorerView';
+import ProjectView from './ProjectView';
 import { supabase } from '../supabaseClient';
 import {
   getPastJournalEntries,
   saveCompanionJournalEntry,
+  saveJournalEntry,
   updateJournalEntry,
   deleteJournalEntry,
   getJournalEntries,
@@ -445,6 +448,8 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
   const [archives, setArchives] = useState([]);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [openTabs, setOpenTabs] = useState([{ id: 'new', label: 'Nouvelle note' }]);
+  const [activeTabId, setActiveTabId] = useState('new'); // 'new' ou entry.id
   const [editText, setEditText] = useState('');
   const [editTags, setEditTags] = useState([]);
   const [editTagInput, setEditTagInput] = useState('');
@@ -460,6 +465,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
 
   const [projects, setProjects] = useState([]);
   const [projectFilter, setProjectFilter] = useState(null);
+  const [activeProjectId, setActiveProjectId] = useState(null);
   const [projectEditId, setProjectEditId] = useState(null);
   const [projectEditName, setProjectEditName] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
@@ -471,6 +477,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
   const [assistantActionType, setAssistantActionType] = useState(null);
   const [showCreditsExhaustedModal, setShowCreditsExhaustedModal] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
 
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -533,6 +540,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     if (ok) {
       setProjects((prev) => prev.filter((x) => x.id !== id));
       if (projectFilter === id) setProjectFilter(null);
+      if (activeProjectId === id) setActiveProjectId(null);
     }
   };
 
@@ -663,13 +671,21 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     setResponseSource(null);
     setPendingMedia([]);
     setCurrentTags([]);
+    setActiveTabId('new');
   };
 
   const handleSelectEntry = (entry) => {
     setSelectedEntry(entry);
     setAiResult(null);
     setIsEditing(false);
+    setViewMode('timeline');
+    setActiveTabId(entry.id);
+    setOpenTabs((prev) => (prev.some((t) => t.id === entry.id) ? prev : [...prev, { id: entry.id, label: 'Note' }]));
   };
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const autosaveRef = useRef(null);
 
   const handleEditEntry = () => {
     if (!selectedEntry) return;
@@ -679,18 +695,55 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     setIsEditing(true);
   };
 
+  const handleNewNoteTab = () => {
+    setSelectedEntry(null);
+    setIsEditing(false);
+    setAiResult(null);
+    setActiveTabId('new');
+    setViewMode('compose');
+  };
+
+  const handleCloseTab = (id) => {
+    if (id === 'new') return;
+    setOpenTabs((prev) => prev.filter((t) => t.id !== id));
+    if (activeTabId === id) {
+      setActiveTabId('new');
+      setSelectedEntry(null);
+      setIsEditing(false);
+      setViewMode('compose');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTabId === 'new') return;
+    const entry = archives.find((e) => e.id === activeTabId);
+    if (entry) setSelectedEntry(entry);
+  }, [activeTabId, archives]);
+
   const handleSaveEdit = async () => {
-    if (!userId || !selectedEntry) return;
+    if (!userId || !selectedEntry || isSaving) return;
+    setIsSaving(true);
     const updated = await updateJournalEntry(userId, selectedEntry.id, {
       entry_text: editText,
       tags: editTags,
       annotations: editAnnotations,
+      project_id: projectFilter || selectedEntry.project_id || null,
     });
     if (updated) {
-      setArchives((prev) => prev.map((e) => (e.id === selectedEntry.id ? { ...e, entry_text: editText, tags: editTags, annotations: editAnnotations } : e)));
-      setSelectedEntry((prev) => (prev && prev.id === selectedEntry.id ? { ...prev, entry_text: editText, tags: editTags, annotations: editAnnotations } : prev));
+      setArchives((prev) =>
+        prev.map((e) =>
+          e.id === selectedEntry.id ? { ...e, entry_text: updated.entry_text, tags: updated.tags, annotations: updated.annotations, project_id: updated.project_id } : e,
+        ),
+      );
+      setSelectedEntry((prev) =>
+        prev && prev.id === selectedEntry.id
+          ? { ...prev, entry_text: updated.entry_text, tags: updated.tags, annotations: updated.annotations, project_id: updated.project_id }
+          : prev,
+      );
+      setLastSavedAt(new Date());
       setIsEditing(false);
     }
+    setIsSaving(false);
   };
 
   const handleSaveAnnotations = async (entryId, annotations) => {
@@ -760,6 +813,60 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     }
   };
 
+  const handleManualSaveNew = async () => {
+    if (!userId || !text || !stripHtml(text).trim()) return;
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const saved = await saveJournalEntry(userId, {
+        entry_text: text,
+        tags: currentTags,
+        project_id: projectFilter || null,
+      });
+      if (saved) {
+        setArchives((prev) => [{ ...saved, tags: currentTags }, ...prev]);
+        setLastSavedAt(new Date());
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isEditing || !userId || !selectedEntry) return;
+    if (autosaveRef.current) clearTimeout(autosaveRef.current);
+    autosaveRef.current = setTimeout(async () => {
+      if (isSaving) return;
+      setIsSaving(true);
+      try {
+        const updated = await updateJournalEntry(userId, selectedEntry.id, {
+          entry_text: editText,
+          tags: editTags,
+          annotations: editAnnotations,
+          project_id: projectFilter || selectedEntry.project_id || null,
+        });
+        if (updated) {
+          setArchives((prev) =>
+            prev.map((e) =>
+              e.id === selectedEntry.id ? { ...e, entry_text: updated.entry_text, tags: updated.tags, annotations: updated.annotations, project_id: updated.project_id } : e,
+            ),
+          );
+          setSelectedEntry((prev) =>
+            prev && prev.id === selectedEntry.id
+              ? { ...prev, entry_text: updated.entry_text, tags: updated.tags, annotations: updated.annotations, project_id: updated.project_id }
+              : prev,
+          );
+          setLastSavedAt(new Date());
+        }
+      } finally {
+        setIsSaving(false);
+      }
+    }, 3000);
+    return () => {
+      if (autosaveRef.current) clearTimeout(autosaveRef.current);
+    };
+  }, [userId, selectedEntry, isEditing, editText, editTags, editAnnotations, projectFilter, isSaving]);
+
   const insertAssistantResultIntoNote = () => {
     if (!assistantResult) return;
     const r = assistantResult.result;
@@ -784,9 +891,49 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
     setAssistantResult(null);
   };
 
+  const ResizeHandle = () => (
+    <PanelResizeHandle className="w-2 flex items-center justify-center">
+      <div className="w-px h-10 bg-gray-800/80" />
+    </PanelResizeHandle>
+  );
+
+  const getEntryTitle = (entry) => {
+    const t = stripHtml(entry?.entry_text || '');
+    if (!t) return 'Sans titre';
+    return t.split('\n')[0].slice(0, 60);
+  };
+
+  const assistantButton = (
+    <div className="relative" ref={assistantDropdownRef}>
+      <button
+        type="button"
+        onClick={() => setAssistantOpen((o) => !o)}
+        disabled={assistantLoading || (aiCredits ?? 15) <= 0}
+        className="px-3 py-2 rounded-lg text-sm border border-gray-700 text-gray-200 hover:bg-gray-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+      >
+        ✨ Assistant
+      </button>
+      {assistantOpen && (
+        <div className="absolute right-0 top-full mt-2 w-64 rounded-lg border border-gray-800 bg-[#111] shadow-xl py-1 z-30">
+          {ASSISTANT_ACTIONS.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => handleAssistantAction(a.id)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-[#e5e5e5] hover:bg-gray-800 transition"
+            >
+              <span>{a.icon}</span>
+              <span>{a.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="smart-journal-page flex flex-col h-[calc(100vh-120px)] gap-4 bg-[var(--sj-bg)] text-[#e5e5e5]">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 rounded-xl border border-gray-800 bg-[var(--sj-bg-elevated)]">
+    <div className="min-h-[calc(100vh-120px)] flex flex-col gap-4 bg-[#0D0D0D] text-[#e5e5e5]">
+      <div className="m-6 mb-0 flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 rounded-2xl border border-gray-800 bg-[#1A1A1A] shadow-2xl shadow-black/70">
         <div className="flex items-center gap-4 flex-shrink-0">
           <div className="flex rounded-lg border border-gray-800 overflow-hidden">
             <button
@@ -808,7 +955,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
           {mainView === 'journal' && (
             <button
               type="button"
-              onClick={() => setViewMode(viewMode === 'timeline' ? 'compose' : 'timeline')}
+              onClick={handleNewNoteTab}
               className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
                 viewMode === 'compose'
                   ? 'bg-gray-700 text-white border-gray-600'
@@ -830,35 +977,6 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                   placeholder="Rechercher..."
                   className="w-full md:w-48 pl-9 pr-3 py-2 rounded-lg bg-[#1a1a1a] border border-gray-800 text-sm text-[#e5e5e5] placeholder-gray-500 focus:outline-none focus:border-gray-600"
                 />
-              </div>
-              <div className="relative" ref={assistantDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setAssistantOpen((o) => !o)}
-              disabled={assistantLoading || (aiCredits ?? 15) <= 0}
-              className={`p-2 rounded-lg border transition ${assistantOpen ? 'bg-gray-700 border-gray-600' : 'border-gray-800 hover:bg-gray-800/50'} ${assistantLoading || (aiCredits ?? 15) <= 0 ? 'opacity-50 cursor-not-allowed' : 'text-gray-400'}`}
-              title="Assistant IA"
-            >
-              <Sparkles className={`w-5 h-5 ${assistantLoading ? 'animate-pulse' : ''}`} />
-            </button>
-            {assistantOpen && (
-              <>
-                <div className="fixed inset-0 z-10" aria-hidden onClick={() => setAssistantOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-20 w-64 rounded-lg border border-gray-800 bg-[#1a1a1a] shadow-xl py-1">
-                  {ASSISTANT_ACTIONS.map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => handleAssistantAction(a.id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-[#e5e5e5] hover:bg-gray-800 transition"
-                    >
-                      <span>{a.icon}</span>
-                      <span>{a.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
               </div>
             </>
           )}
@@ -905,16 +1023,192 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
             onSelectNote={(entry) => { setSelectedEntry(entry); setMainView('journal'); }}
           />
         </div>
+      ) : activeProjectId ? (
+        <div className="flex-1 min-h-0">
+          <ProjectView
+            project={projects.find((p) => p.id === activeProjectId)}
+            userId={userId}
+            onBack={() => setActiveProjectId(null)}
+            onOpenNote={(entryOrId) => {
+              const entry = entryOrId?.id && !entryOrId.entry_text
+                ? archives.find((e) => e.id === entryOrId.id)
+                : entryOrId;
+              if (entry) {
+                setSelectedEntry(entry);
+                setActiveProjectId(null);
+              }
+            }}
+            onRenameProject={(updated) => setProjects((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))}
+            onDeleteProject={(id) => { setProjects((prev) => prev.filter((x) => x.id !== id)); setActiveProjectId(null); }}
+            archivesForProject={archives}
+            fetchArchives={fetchArchives}
+          />
+        </div>
       ) : (
-      <div className="flex-1 flex gap-4 overflow-hidden">
-        {/* Sidebar Projets + filtre par tag */}
-        {sidebarOpen && (
-          <div className="w-52 flex-shrink-0 border border-gray-800 rounded-xl bg-[var(--sj-bg-elevated)] p-4 overflow-y-auto space-y-4">
+      <div className="flex-1 min-h-0">
+        {focusMode ? (
+          <div className="m-6 mt-0 h-full rounded-2xl border border-gray-800 bg-[#1A1A1A] overflow-hidden">
+            {/* Panneau éditeur plein écran */}
+            <div className="h-full flex flex-col min-h-0">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#141414]">
+                <p className="text-sm text-gray-300">Mode Focus</p>
+                <button
+                  type="button"
+                  onClick={() => setFocusMode(false)}
+                  className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition"
+                  title="Quitter le mode Focus"
+                >
+                  <Minimize2 className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Réutilise le panneau d’onglets existant */}
+                <div className="rounded-2xl border border-gray-800 bg-[#1A1A1A] h-full flex flex-col min-h-0">
+                  {/* Tabs */}
+                  <div className="flex items-center border-b border-gray-800 bg-[#141414] flex-shrink-0 overflow-x-auto">
+                    {openTabs.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => (t.id === 'new' ? handleNewNoteTab() : setActiveTabId(t.id))}
+                        className={`group flex items-center gap-2 px-4 py-2 text-sm border-r border-gray-800 min-w-0 transition ${
+                          activeTabId === t.id ? 'bg-[var(--sj-bg-elevated)] text-[#e5e5e5]' : 'text-gray-400 hover:bg-gray-800/40 hover:text-gray-200'
+                        }`}
+                      >
+                        <span className="truncate">{t.id === 'new' ? 'Nouvelle note' : getEntryTitle(archives.find((e) => e.id === t.id) || selectedEntry)}</span>
+                        {t.id !== 'new' && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); handleCloseTab(t.id); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); handleCloseTab(t.id); } }}
+                            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-200 transition"
+                            aria-label="Fermer"
+                          >
+                            ×
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex-1 overflow-y-auto min-h-0 p-6">
+                    {/* contenu existant (réutilisation) */}
+                    {activeTabId !== 'new' && selectedEntry && !isEditing && (
+                      <EntryViewer
+                        entry={selectedEntry}
+                        onClose={() => setSelectedEntry(null)}
+                        onEdit={handleEditEntry}
+                        onSaveAnnotations={handleSaveAnnotations}
+                        userId={userId}
+                      />
+                    )}
+                    {activeTabId !== 'new' && isEditing && selectedEntry && (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-lg font-medium text-[#e5e5e5]">Modifier la note</h2>
+                          <button type="button" onClick={() => setIsEditing(false)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <RichTextEditor
+                          value={editText}
+                          onChange={setEditText}
+                          placeholder="Contenu de la note..."
+                          minHeight="520px"
+                          stickyToolbar
+                          rightSlot={assistantButton}
+                        />
+                        {/* Métadonnées en bas */}
+                        <div className="rounded-2xl border border-gray-800 bg-white/5 p-6 space-y-4">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Tags</p>
+                            <TagPills tags={editTags} onRemove={(i) => setEditTags((prev) => prev.filter((_, j) => j !== i))} />
+                            <TagInput
+                              value={editTagInput}
+                              onChange={setEditTagInput}
+                              onAdd={(t) => { setEditTags((prev) => (prev.includes(t) ? prev : [...prev, t])); setEditTagInput(''); }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-end gap-3">
+                            <button
+                              type="button"
+                              onClick={handleSaveEdit}
+                              disabled={isSaving}
+                              className="px-5 py-3 rounded-xl bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                              {isSaving ? 'Enregistrement…' : '💾 Sauvegarder'}
+                            </button>
+                            {lastSavedAt && (
+                              <span className="text-[10px] text-gray-500">Enregistré à {lastSavedAt.toLocaleTimeString()}</span>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                    {activeTabId === 'new' && !aiResult && (
+                      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-4">
+                        <div className="rounded-2xl border border-gray-800 bg-[#1a1a1a] overflow-hidden">
+                          <RichTextEditor
+                            value={text}
+                            onChange={setText}
+                            placeholder="Écrivez votre note ici…"
+                            minHeight="560px"
+                            disabled={isAnalyzing}
+                            stickyToolbar
+                            rightSlot={assistantButton}
+                          />
+                        </div>
+                        <div className="rounded-2xl border border-gray-800 bg-white/5 p-6 space-y-4">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Tags</p>
+                            <TagPills tags={currentTags} onRemove={handleRemoveTag} />
+                            <TagInput value={tagInputValue} onChange={setTagInputValue} onAdd={handleAddTag} />
+                          </div>
+                          <MediaPreview media={pendingMedia} onRemove={removePendingMedia} />
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <input ref={scannerInputRef} type="file" accept="image/*" onChange={handleScanManuscript} className="hidden" />
+                              <button type="button" onClick={() => scannerInputRef.current?.click()} disabled={ocrLoading} className="p-2 rounded-lg hover:bg-gray-800 text-gray-500 disabled:opacity-50" title="OCR (photo manuscrite)">
+                                {ocrLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-5 h-5" />}
+                              </button>
+                              <input ref={attachmentInputRef} type="file" accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" multiple onChange={handleAttachmentUpload} className="hidden" />
+                              <button type="button" onClick={() => attachmentInputRef.current?.click()} className="p-2 rounded-lg hover:bg-gray-800 text-gray-500" title="Pièce jointe">
+                                <Paperclip className="w-5 h-5" />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={handleManualSaveNew}
+                                disabled={isSaving || !stripHtml(text).trim()}
+                                className="px-5 py-3 rounded-xl bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                              >
+                                {isSaving ? 'Enregistrement…' : '💾 Sauvegarder'}
+                              </button>
+                              {lastSavedAt && (
+                                <span className="text-[10px] text-gray-500">Enregistré à {lastSavedAt.toLocaleTimeString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+        <PanelGroup direction="horizontal" className="h-full">
+          {/* Sidebar (flottante) */}
+          <Panel defaultSize={20} minSize={16}>
+            {sidebarOpen && (
+              <div className="m-6 mt-0 h-[calc(100%-0px)] border border-gray-800 rounded-2xl bg-[#1A1A1A] shadow-2xl shadow-black/70 p-4 overflow-y-auto space-y-4">
             <div>
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Projets</p>
               <button
                 type="button"
-                onClick={() => setProjectFilter(null)}
+                onClick={() => { setProjectFilter(null); setActiveProjectId(null); }}
                 className={`w-full text-left px-2 py-1.5 rounded-lg text-sm mb-1 transition ${!projectFilter ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
               >
                 Tous
@@ -937,8 +1231,11 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                     <>
                       <button
                         type="button"
-                        onClick={() => setProjectFilter(projectFilter === p.id ? null : p.id)}
-                        className={`flex-1 text-left truncate px-2 py-1.5 rounded-lg text-sm transition border-l-2 pl-2 ${projectFilter === p.id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
+                        onClick={() => {
+                          setProjectFilter(p.id);
+                          setActiveProjectId(p.id);
+                        }}
+                        className={`flex-1 text-left truncate px-2 py-1.5 rounded-lg text-sm transition border-l-2 pl-2 ${activeProjectId === p.id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'}`}
                         style={{ borderColor: p.color || '#6B7280' }}
                       >
                         {p.name}
@@ -991,42 +1288,105 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
             )}
             </div>
           </div>
-        )}
+            )}
+          </Panel>
+          <ResizeHandle />
 
-        <div className={`flex-1 overflow-y-auto ${viewMode === 'compose' ? 'hidden md:block' : ''}`}>
-          {sortedArchives.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <BookOpen className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-500">{searchQuery || filterTag ? 'Aucun résultat' : 'Aucune note pour le moment'}</p>
-                <p className="text-gray-600 text-sm mt-2">Créez votre première note ci-dessus.</p>
+          {/* Liste centrale (flottante) */}
+          <Panel defaultSize={35} minSize={20}>
+            <div className="m-6 mt-0 h-full border border-gray-800 rounded-2xl bg-[#1A1A1A] shadow-2xl shadow-black/70 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-800 text-sm text-gray-400">Notes</div>
+              <div className="overflow-y-auto h-full">
+                {sortedArchives.length === 0 ? (
+                  <div className="h-full flex items-center justify-center p-6">
+                    <div className="text-center">
+                      <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-500">{searchQuery || filterTag ? 'Aucun résultat' : 'Aucune note pour le moment'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-800">
+                    {sortedArchives.map((entry) => {
+                      const title = getEntryTitle(entry);
+                      const preview = stripHtml(entry.entry_text || '').slice(0, 120);
+                      return (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          onClick={() => handleSelectEntry(entry)}
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-800/40 transition ${
+                            selectedEntry?.id === entry.id ? 'bg-gray-800/30' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm text-gray-200 truncate">{title}</p>
+                            <p className="text-xs text-gray-500 flex-shrink-0">{new Date(entry.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-1">{preview}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
-          ) : (
-            <div className={`grid gap-3 p-2 ${getGridCols()}`}>
-              {sortedArchives.map((entry) => (
-                <TimelineCell
-                  key={entry.id}
-                  entry={entry}
-                  zoom={zoomLevel}
-                  isSelected={selectedEntry?.id === entry.id}
-                  onSelect={handleSelectEntry}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+          </Panel>
+          <ResizeHandle />
 
-        <AnimatePresence mode="wait">
-          {(viewMode === 'compose' || selectedEntry) && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="w-full md:w-[500px] lg:w-[600px] flex-shrink-0 overflow-y-auto"
-            >
-              <div className="p-6 rounded-xl border border-gray-800 bg-[var(--sj-bg-elevated)] min-h-full">
-                {selectedEntry && !isEditing && (
+          {/* Éditeur (concret, ancré) */}
+          <Panel defaultSize={45} minSize={30}>
+            <div className="m-6 mt-0 h-full rounded-2xl border border-gray-800 bg-[#111111] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#111111]">
+                <p className="text-sm text-gray-400 truncate">{focusMode ? 'Mode Focus' : 'Éditeur'}</p>
+                <button
+                  type="button"
+                  onClick={() => setFocusMode(true)}
+                  className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition"
+                  title="Mode Focus"
+                >
+                  <Maximize2 className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="h-full overflow-y-auto p-6">
+                <AnimatePresence mode="wait">
+                  {mainView === 'journal' && openTabs.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      className="h-full"
+                    >
+                      <div className="rounded-2xl border border-gray-800 bg-[#1A1A1A] h-full flex flex-col min-h-0">
+                {/* Tabs (style VS Code) */}
+                <div className="flex items-center border-b border-gray-800 bg-[#141414] flex-shrink-0 overflow-x-auto">
+                  {openTabs.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => (t.id === 'new' ? handleNewNoteTab() : setActiveTabId(t.id))}
+                      className={`group flex items-center gap-2 px-4 py-2 text-sm border-r border-gray-800 min-w-0 transition ${
+                        activeTabId === t.id ? 'bg-[var(--sj-bg-elevated)] text-[#e5e5e5]' : 'text-gray-400 hover:bg-gray-800/40 hover:text-gray-200'
+                      }`}
+                    >
+                      <span className="truncate">{t.id === 'new' ? 'Nouvelle note' : 'Note'}</span>
+                      {t.id !== 'new' && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); handleCloseTab(t.id); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); handleCloseTab(t.id); } }}
+                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-200 transition"
+                          aria-label="Fermer"
+                        >
+                          ×
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto min-h-0 p-6">
+                {activeTabId !== 'new' && selectedEntry && !isEditing && (
                   <EntryViewer
                     entry={selectedEntry}
                     onClose={() => setSelectedEntry(null)}
@@ -1036,24 +1396,24 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                   />
                 )}
 
-                {isEditing && selectedEntry && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                {activeTabId !== 'new' && isEditing && selectedEntry && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col min-h-[calc(100vh-360px)] gap-4">
                     <div className="flex items-center justify-between">
                       <h2 className="text-lg font-medium text-[#e5e5e5]">Modifier la note</h2>
                       <button type="button" onClick={() => setIsEditing(false)} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
-                    <RichTextEditor value={editText} onChange={setEditText} placeholder="Contenu de la note..." minHeight="200px" />
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Tags</p>
-                      <TagPills tags={editTags} onRemove={(i) => setEditTags((prev) => prev.filter((_, j) => j !== i))} />
-                      <TagInput
-                        value={editTagInput}
-                        onChange={setEditTagInput}
-                        onAdd={(t) => { setEditTags((prev) => (prev.includes(t) ? prev : [...prev, t])); setEditTagInput(''); }}
-                      />
-                    </div>
+                    <RichTextEditor
+                      value={editText}
+                      onChange={setEditText}
+                      placeholder="Contenu de la note..."
+                      minHeight="0"
+                      stickyToolbar
+                      rightSlot={assistantButton}
+                      className="flex-1 min-h-0"
+                    />
+
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Annotations</p>
                       {editAnnotations.map((ann, idx) => (
@@ -1085,49 +1445,67 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                         </button>
                       </div>
                     </div>
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={handleSaveEdit}
-                        className="px-6 py-3 rounded-lg bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 transition"
-                      >
-                        Enregistrer
-                      </button>
-                      <button type="button" onClick={() => setIsEditing(false)} className="px-6 py-3 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition">
-                        Annuler
-                      </button>
+
+                    {/* Métadonnées + actions en bas (toujours visibles) */}
+                    <div className="sticky bottom-0 rounded-xl border border-gray-800 bg-white/5 p-4 space-y-3 backdrop-blur">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Tags</p>
+                        <TagPills tags={editTags} onRemove={(i) => setEditTags((prev) => prev.filter((_, j) => j !== i))} />
+                        <TagInput
+                          value={editTagInput}
+                          onChange={setEditTagInput}
+                          onAdd={(t) => { setEditTags((prev) => (prev.includes(t) ? prev : [...prev, t])); setEditTagInput(''); }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={isSaving}
+                            className="px-4 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          >
+                            {isSaving ? 'Enregistrement…' : '💾 Sauvegarder'}
+                          </button>
+                          <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition">
+                            Annuler
+                          </button>
+                          {lastSavedAt && (
+                            <span className="text-[10px] text-gray-500">Enregistré à {lastSavedAt.toLocaleTimeString()}</span>
+                          )}
+                      </div>
                     </div>
                   </motion.div>
                 )}
 
-                {viewMode === 'compose' && !selectedEntry && !aiResult && (
-                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-                    <div className="text-center mb-6">
-                      <h1 className="text-xl font-semibold text-[#e5e5e5] flex items-center justify-center gap-2">
-                        <Feather className="w-5 h-5" />
-                        Nouvelle note
-                      </h1>
-                      <p className="text-gray-500 text-sm mt-1">Rédigez votre note. Vous pouvez ajouter des tags et demander une analyse.</p>
-                    </div>
-
-                    <div className="rounded-xl border border-gray-800 bg-[#1a1a1a] overflow-hidden mb-4">
+                {activeTabId === 'new' && !aiResult && (
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="flex flex-col min-h-[calc(100vh-360px)] gap-4">
+                    <div className="rounded-2xl border border-gray-800 bg-[#1a1a1a] overflow-hidden">
                       <RichTextEditor
                         value={text}
                         onChange={setText}
                         placeholder="Écrivez votre note ici…"
-                        minHeight="200px"
+                        minHeight="0"
                         disabled={isAnalyzing}
+                        stickyToolbar
+                        rightSlot={assistantButton}
+                        className="flex-1 min-h-0"
                       />
-                      <div className="px-4 py-2 border-t border-gray-800">
-                        <p className="text-xs text-gray-500 mb-1">Tags (optionnel)</p>
+                    </div>
+
+                    {/* Métadonnées en bas (visuellement distinct) */}
+                    <div className="sticky bottom-0 rounded-xl border border-gray-800 bg-white/5 p-4 space-y-3 backdrop-blur">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Tags</p>
                         <TagPills tags={currentTags} onRemove={handleRemoveTag} />
                         <TagInput value={tagInputValue} onChange={setTagInputValue} onAdd={handleAddTag} />
                       </div>
+
                       <MediaPreview media={pendingMedia} onRemove={removePendingMedia} />
-                      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-800">
+
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-2">
                           <input ref={scannerInputRef} type="file" accept="image/*" onChange={handleScanManuscript} className="hidden" />
-                          <button type="button" onClick={() => scannerInputRef.current?.click()} disabled={ocrLoading} className="p-2 rounded-lg hover:bg-gray-800 text-gray-500 disabled:opacity-50" title="Numériser un manuscrit (OCR)">
+                          <button type="button" onClick={() => scannerInputRef.current?.click()} disabled={ocrLoading} className="p-2 rounded-lg hover:bg-gray-800 text-gray-500 disabled:opacity-50" title="OCR (photo manuscrite)">
                             {ocrLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-5 h-5" />}
                           </button>
                           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={(e) => handleFileUpload(e, 'image')} className="hidden" />
@@ -1147,32 +1525,21 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                             <Paperclip className="w-5 h-5" />
                           </button>
                         </div>
-                        <span className={`text-xs ${canSubmit ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {plainLength}/{MIN_CHARS}
-                        </span>
-                      </div>
-                    </div>
 
-                    <div className="flex justify-center">
-                      {!isAnalyzing ? (
-                        <motion.button
-                          type="button"
-                          animate={{ opacity: canSubmit ? 1 : 0.5 }}
-                          onClick={handleAnalyze}
-                          disabled={!canSubmit}
-                          className="px-8 py-4 rounded-xl font-medium border border-gray-600 bg-gray-800 text-[#e5e5e5] hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Sparkles className="w-5 h-5" />
-                            Analyser la note
-                          </span>
-                        </motion.button>
-                      ) : (
-                        <div className="flex flex-col items-center gap-4 py-6">
-                          <Loader2 className="w-10 h-10 text-gray-400 animate-spin" />
-                          <p className="text-gray-500 text-sm">Analyse en cours…</p>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={handleManualSaveNew}
+                            disabled={isSaving || !stripHtml(text).trim()}
+                            className="px-4 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          >
+                            {isSaving ? 'Enregistrement…' : '💾 Sauvegarder'}
+                          </button>
+                          {lastSavedAt && (
+                            <span className="text-[10px] text-gray-500">Enregistré à {lastSavedAt.toLocaleTimeString()}</span>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -1281,10 +1648,16 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                     {error}
                   </div>
                 )}
+                      </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </Panel>
+        </PanelGroup>
+        )}
       </div>
       )}
 

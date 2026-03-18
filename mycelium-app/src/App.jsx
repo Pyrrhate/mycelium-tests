@@ -81,7 +81,6 @@ function AppJournalView({ session, onLogout }) {
 
 function App() {
   const [session, setSession] = useState(null);
-  const [authIntent, setAuthIntent] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [publicSlug, setPublicSlug] = useState(() => {
     const m = window.location.hash.match(/^#\/profile\/(.+)$/);
@@ -138,23 +137,8 @@ function App() {
     );
   }
 
-  if (authIntent) {
-    return (
-      <AuthGate
-        initialMode={authIntent}
-        onBack={() => setAuthIntent(null)}
-        onAuth={setSession}
-      >
-        {null}
-      </AuthGate>
-    );
-  }
-
   return (
-    <LandingPage
-      onSignup={() => setAuthIntent('signup')}
-      onLogin={() => setAuthIntent('login')}
-    />
+    <LandingPage onAuth={setSession} />
   );
 }
 
