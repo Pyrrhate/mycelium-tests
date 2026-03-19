@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import AuthGate from './components/AuthGate';
 import ProfilePublic from './components/ProfilePublic';
 import LandingPage from './components/LandingPage';
-import SmartJournal from './components/SmartJournal';
+import AnchoredJournal from './components/AnchoredJournal';
 import VueParametres from './components/VueParametres';
 import { useInitiationStatus } from './hooks/useInitiationStatus';
 import { supabase } from './supabaseClient';
@@ -12,10 +12,10 @@ import ThemeToggle from './components/ThemeToggle';
 
 function AppJournalView({ session, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
-  const { profile, aiCredits, canActivatePublic, isPublic, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
+  const { profile, canActivatePublic, isPublic, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
 
   return (
-    <div className="min-h-screen bg-[#070B0A] flex flex-col">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#0A0A0A] text-gray-200">
       <header className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[#070B0A]/95">
         <span className="text-sm font-semibold text-[#F1F1E6]/90">
           {showSettings ? 'Paramètres' : 'Smart Journal'}
@@ -51,9 +51,9 @@ function AppJournalView({ session, onLogout }) {
           </button>
         </div>
       </header>
-      <main className="flex-1 min-h-0 overflow-auto">
+      <main className="flex-1 min-h-0 overflow-hidden">
         {showSettings ? (
-          <div className="p-4 max-w-2xl mx-auto">
+          <div className="h-full overflow-y-auto p-4 max-w-2xl mx-auto">
             <VueParametres
               onBack={() => setShowSettings(false)}
               userId={session?.user?.id}
@@ -70,11 +70,9 @@ function AppJournalView({ session, onLogout }) {
             />
           </div>
         ) : (
-          <SmartJournal
+          <AnchoredJournal
             userId={session?.user?.id}
             profile={profile}
-            aiCredits={aiCredits ?? 15}
-            onCreditsRefetch={refetchInitiation}
           />
         )}
       </main>

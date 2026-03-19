@@ -39,15 +39,15 @@
 }
 
 .theme-light {
-  --bg-main: #f6f6f6;
-  --bg-elevated: #ffffff;
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --text-main: #0b0b0b;
+  --bg-main: #F5F5F5;
+  --bg-elevated: #FCFCFC;
+  --border-subtle: rgba(26, 26, 26, 0.12);
+  --text-main: #1A1A1A;
   --text-muted: #4b5563;
-  --accent: #0b0b0b;
-  --sj-bg: #ffffff;
-  --sj-bg-elevated: #f3f4f6;
-  --sj-border: 1px solid rgba(0, 0, 0, 0.08);
+  --accent: #1A1A1A;
+  --sj-bg: #FCFCFC;
+  --sj-bg-elevated: #F3F3F3;
+  --sj-border: 1px solid rgba(26, 26, 26, 0.10);
 }
 
 /* Zone Smart Journal : fond gris foncé, bordures fines */

@@ -148,3 +148,53 @@ export async function exportNotesToCombinedPdf(notes, title = 'Notes exportées'
   }
   pdf.save(`${filename}.pdf`);
 }
+
+/**
+ * Génère un DOCX combiné à partir de plusieurs notes (texte brut, avec titres/dates).
+ * @param {Array<{ id: string, title?: string, entry_text: string, created_at?: string }>} notes
+ * @param {string} filename
+ */
+export async function exportNotesToCombinedDocx(notes, filename = 'notes-combined') {
+  if (!notes?.length) return;
+
+  const children = [];
+  notes.forEach((note, index) => {
+    const title = String(note?.title || `Note ${index + 1}`).trim();
+    const dateStr = note?.created_at
+      ? new Date(note.created_at).toLocaleDateString('fr-FR', { dateStyle: 'long' })
+      : '';
+    const text = stripHtml(note?.entry_text || '') || 'Aucun contenu.';
+
+    children.push(new Paragraph({
+      children: [new TextRun({ text: title, bold: true, size: 30 })],
+      spacing: { after: 140 },
+    }));
+    if (dateStr) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: dateStr, italics: true, size: 20 })],
+        spacing: { after: 180 },
+      }));
+    }
+    text.split(/\n\n+/).filter(Boolean).forEach((block) => {
+      children.push(new Paragraph({
+        children: [new TextRun(block)],
+        spacing: { after: 160 },
+      }));
+    });
+    if (index < notes.length - 1) {
+      children.push(new Paragraph({ text: '' }));
+      children.push(new Paragraph({ text: '' }));
+    }
+  });
+
+  const doc = new Document({
+    sections: [{ children }],
+  });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.docx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

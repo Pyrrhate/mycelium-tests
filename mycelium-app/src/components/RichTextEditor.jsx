@@ -17,12 +17,16 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
-const ToolbarButton = ({ active, onClick, children, title }) => (
+const ToolbarButton = ({ active, onClick, children, title, isEink = false }) => (
   <button
     type="button"
     title={title}
     onClick={onClick}
-    className={`p-2 rounded border border-gray-700 hover:bg-gray-800 transition ${active ? 'bg-gray-700 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
+    className={`p-2 rounded border transition ${
+      isEink
+        ? `${active ? 'bg-[#ECECEC] text-[#1A1A1A] border-[#D9D9D9]' : 'bg-[#F8F8F8] text-[#3A3A3A] border-[#DEDEDE] hover:bg-[#EFEFEF]'}`
+        : `${active ? 'bg-gray-700 text-white border-gray-700' : 'bg-[#1a1a1a] text-gray-400 border-gray-700 hover:bg-gray-800'}`
+    }`}
   >
     {children}
   </button>
@@ -78,12 +82,16 @@ export default function RichTextEditor({
   spellcheck = true,
   density = 'comfortable', // 'comfortable' | 'compact'
   onDensityChange,
+  visualStyle = 'dark', // 'dark' | 'eink'
+  disableAiActions = false,
 }) {
   const surfaceRef = useRef(null);
   const [openParagraphId, setOpenParagraphId] = useState(null);
   const [proofreading, setProofreading] = useState(false);
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef(null);
+
+  const isEink = visualStyle === 'eink';
 
   const editor = useEditor({
     extensions: [
@@ -108,13 +116,15 @@ export default function RichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
-    const cls = density === 'compact'
-      ? 'prose focus:outline-none min-h-[240px] px-4 py-4 max-w-full mx-0 text-sm leading-relaxed'
-      : 'prose focus:outline-none min-h-[240px] px-4 py-4 md:px-12 md:py-12 md:max-w-[720px] md:mx-auto';
+    const cls = isEink
+      ? 'prose prose-neutral focus:outline-none min-h-[360px] max-w-3xl mx-auto px-12 py-16 text-[#1A1A1A] leading-relaxed break-words overflow-x-hidden'
+      : density === 'compact'
+        ? 'prose focus:outline-none min-h-[240px] px-4 py-4 max-w-full mx-0 text-sm leading-relaxed'
+        : 'prose focus:outline-none min-h-[240px] px-4 py-4 md:px-12 md:py-12 md:max-w-[720px] md:mx-auto';
     editor.setOptions({
       editorProps: { attributes: { class: cls } },
     });
-  }, [editor, density]);
+  }, [editor, density, isEink]);
 
   useEffect(() => {
     if (editor && value !== undefined && value !== editor.getHTML()) {
@@ -222,7 +232,7 @@ export default function RichTextEditor({
   ];
 
   return (
-    <div className={`rounded-lg border border-gray-800 bg-[#1a1a1a] overflow-hidden flex flex-col ${className}`}>
+    <div className={`rounded-lg border overflow-hidden flex flex-col ${isEink ? 'border-[#E1E1E1] bg-[#FDFDFD]' : 'border-gray-800 bg-[#1a1a1a]'} ${className}`}>
       {toast ? (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]">
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/15 text-emerald-200 px-4 py-2 text-sm shadow-xl shadow-black/40">
@@ -231,36 +241,39 @@ export default function RichTextEditor({
         </div>
       ) : null}
 
-      <BubbleMenu
-        editor={editor}
-        tippyOptions={{ duration: 120, placement: 'top' }}
-        shouldShow={() => {
-          if (disabled) return false;
-          const { from, to } = editor.state.selection;
-          return to > from;
-        }}
-      >
-        <div className="flex items-center gap-2 rounded-xl border border-gray-800 bg-[#111111] px-2 py-1 shadow-xl shadow-black/40">
-          <button
-            type="button"
-            onClick={handleProofread}
-            disabled={proofreading || !selectionHasText()}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed transition"
-            title="Corriger la sélection"
-          >
-            {proofreading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-            Corriger
-          </button>
-          <span className="text-xs text-gray-500 hidden sm:inline">Sélection uniquement</span>
-        </div>
-      </BubbleMenu>
+      {!disableAiActions && (
+        <BubbleMenu
+          editor={editor}
+          tippyOptions={{ duration: 120, placement: 'top' }}
+          shouldShow={() => {
+            if (disabled) return false;
+            const { from, to } = editor.state.selection;
+            return to > from;
+          }}
+        >
+          <div className="flex items-center gap-2 rounded-xl border border-gray-800 bg-[#111111] px-2 py-1 shadow-xl shadow-black/40">
+            <button
+              type="button"
+              onClick={handleProofread}
+              disabled={proofreading || !selectionHasText()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed transition"
+              title="Corriger la sélection"
+            >
+              {proofreading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+              Corriger
+            </button>
+            <span className="text-xs text-gray-500 hidden sm:inline">Sélection uniquement</span>
+          </div>
+        </BubbleMenu>
+      )}
 
-      <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b border-gray-800 bg-[#222] ${stickyToolbar ? 'sticky top-0 z-10' : ''}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b ${isEink ? 'border-[#E5E5E5] bg-[#FAFAFA]' : 'border-gray-800 bg-[#222]'} ${stickyToolbar ? 'sticky top-0 z-10' : ''}`}>
         <div className="flex flex-wrap gap-1">
           <ToolbarButton
             active={editor.isActive('bold')}
             onClick={() => editor.chain().focus().toggleBold().run()}
             title="Gras"
+            isEink={isEink}
           >
             <Bold className="w-4 h-4" />
           </ToolbarButton>
@@ -268,6 +281,7 @@ export default function RichTextEditor({
             active={editor.isActive('italic')}
             onClick={() => editor.chain().focus().toggleItalic().run()}
             title="Italique"
+            isEink={isEink}
           >
             <Italic className="w-4 h-4" />
           </ToolbarButton>
@@ -275,14 +289,16 @@ export default function RichTextEditor({
             active={editor.isActive('underline')}
             onClick={() => editor.chain().focus().toggleUnderline().run()}
             title="Souligné"
+            isEink={isEink}
           >
             <UnderlineIcon className="w-4 h-4" />
           </ToolbarButton>
-          <span className="w-px h-6 bg-gray-700 mx-1" />
+          <span className={`w-px h-6 mx-1 ${isEink ? 'bg-[#DDDDDD]' : 'bg-gray-700'}`} />
           <ToolbarButton
             active={editor.isActive('heading', { level: 1 })}
             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
             title="Titre 1"
+            isEink={isEink}
           >
             <Heading1 className="w-4 h-4" />
           </ToolbarButton>
@@ -290,6 +306,7 @@ export default function RichTextEditor({
             active={editor.isActive('heading', { level: 2 })}
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             title="Titre 2"
+            isEink={isEink}
           >
             <Heading2 className="w-4 h-4" />
           </ToolbarButton>
@@ -297,6 +314,7 @@ export default function RichTextEditor({
             active={editor.isActive('heading', { level: 3 })}
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
             title="Titre 3"
+            isEink={isEink}
           >
             <Heading3 className="w-4 h-4" />
           </ToolbarButton>
@@ -304,6 +322,7 @@ export default function RichTextEditor({
             active={editor.isActive('bulletList')}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
             title="Liste à puces"
+            isEink={isEink}
           >
             <List className="w-4 h-4" />
           </ToolbarButton>
@@ -331,81 +350,88 @@ export default function RichTextEditor({
               setOpenParagraphId(paragraphId);
             }}
             title="Annoter ce paragraphe"
+            isEink={isEink}
           >
             <MessageSquarePlus className="w-4 h-4" />
           </ToolbarButton>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onMentorClick}
-            className="px-3 py-2 rounded-lg text-sm border border-gray-700 text-gray-200 hover:bg-gray-800/50 transition"
-            title="Mentor éditorial (Premium)"
-          >
-            🧠 Mentor
-          </button>
+          {!disableAiActions && (
+            <button
+              type="button"
+              onClick={onMentorClick}
+              className="px-3 py-2 rounded-lg text-sm border border-gray-700 text-gray-200 hover:bg-gray-800/50 transition"
+              title="Mentor éditorial (Premium)"
+            >
+              🧠 Mentor
+            </button>
+          )}
           <select
             value={density}
             onChange={(e) => onDensityChange?.(e.target.value)}
-            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+            className={`px-2 py-2 rounded-lg border text-xs transition ${isEink ? 'border-[#DDDDDD] bg-[#FFFFFF] text-[#2A2A2A] hover:bg-[#F4F4F4]' : 'border-gray-800 bg-[#1a1a1a] text-gray-300 hover:bg-gray-800/40'}`}
             title="Densité"
           >
             <option value="comfortable">Confort</option>
             <option value="compact">Compact</option>
           </select>
-          <select
-            value={editor.getAttributes('textStyle').color || ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) editor.chain().focus().unsetColor().run();
-              else editor.chain().focus().setColor(v).run();
-            }}
-            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
-            title="Couleur du texte"
-          >
-            {TEXT_COLORS.map((c) => (
-              <option key={c.id} value={c.value || ''}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          {!isEink && (
+            <>
+              <select
+                value={editor.getAttributes('textStyle').color || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) editor.chain().focus().unsetColor().run();
+                  else editor.chain().focus().setColor(v).run();
+                }}
+                className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+                title="Couleur du texte"
+              >
+                {TEXT_COLORS.map((c) => (
+                  <option key={c.id} value={c.value || ''}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
 
-          <select
-            value={editor.getAttributes('highlight').color || ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) editor.chain().focus().unsetHighlight().run();
-              else editor.chain().focus().setHighlight({ color: v }).run();
-            }}
-            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
-            title="Surlignage"
-          >
-            {HIGHLIGHTS.map((h) => (
-              <option key={h.id} value={h.value || ''}>
-                {h.label}
-              </option>
-            ))}
-          </select>
+              <select
+                value={editor.getAttributes('highlight').color || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) editor.chain().focus().unsetHighlight().run();
+                  else editor.chain().focus().setHighlight({ color: v }).run();
+                }}
+                className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+                title="Surlignage"
+              >
+                {HIGHLIGHTS.map((h) => (
+                  <option key={h.id} value={h.value || ''}>
+                    {h.label}
+                  </option>
+                ))}
+              </select>
 
-          <select
-            value={editor.getAttributes('textStyle').fontFamily || ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) editor.chain().focus().unsetFontFamily().run();
-              else applyFontToWholeNote(v);
-            }}
-            className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
-            title="Typographie"
-          >
-            <option value="">Typographie</option>
-            {FONTS.map((f) => (
-              <option key={f.id} value={f.value}>
-                {f.label}
-              </option>
-            ))}
-          </select>
+              <select
+                value={editor.getAttributes('textStyle').fontFamily || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) editor.chain().focus().unsetFontFamily().run();
+                  else applyFontToWholeNote(v);
+                }}
+                className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
+                title="Typographie"
+              >
+                <option value="">Typographie</option>
+                {FONTS.map((f) => (
+                  <option key={f.id} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
 
-          <PageAppearanceMenu value={pageAppearance} onChange={onPageAppearanceChange} />
+              <PageAppearanceMenu value={pageAppearance} onChange={onPageAppearanceChange} />
+            </>
+          )}
           {rightSlot ? <div className="flex items-center gap-2">{rightSlot}</div> : null}
         </div>
       </div>
@@ -427,9 +453,17 @@ export default function RichTextEditor({
         </div>
         <EditorContent
           editor={editor}
-          style={{ minHeight }}
+          style={{
+            minHeight,
+            ...(isEink ? { fontFamily: '\'EB Garamond\', \'Crimson Pro\', serif' } : {}),
+            ...(isEink ? { color: '#1A1A1A' } : {}),
+          }}
           spellCheck={spellcheck}
-          className="flex-1 min-h-0 [&_.ProseMirror]:min-h-[240px] [&_.ProseMirror]:p-0 [&_.ProseMirror]:text-[color:var(--text-main)] [&_.ProseMirror]:focus:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-[color:var(--text-muted)]"
+          className={`flex-1 min-h-0 overflow-x-hidden [&_.ProseMirror]:min-h-[240px] [&_.ProseMirror]:p-0 [&_.ProseMirror]:focus:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-[color:var(--text-muted)] ${
+            isEink
+              ? '[&_.ProseMirror]:text-[#1A1A1A] [&_.ProseMirror_h1]:text-4xl [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h2]:text-3xl [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror]:overflow-x-hidden'
+              : '[&_.ProseMirror]:text-[color:var(--text-main)]'
+          }`}
         />
 
         <ParagraphAnnotationsOverlay

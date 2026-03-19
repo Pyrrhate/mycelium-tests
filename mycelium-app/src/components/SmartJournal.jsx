@@ -4,10 +4,9 @@ import {
   Sparkles, Loader2, Feather, Quote, HelpCircle, BookOpen,
   Pin, Pencil, Trash2, X, Search, Image, Mic, Video, ZoomIn, ZoomOut, StickyNote,
   Download, FileText, FileDown, ChevronDown, ListTodo, Brain, Tag, ScanLine, Paperclip,
-  FolderOpen, Plus, Maximize2, Minimize2, Menu, ChevronLeft, PanelRightOpen
+  Plus, Maximize2, Minimize2, Menu, ChevronLeft, PanelRightOpen
 } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import ExplorerView from './ExplorerView';
 import ProjectView from './ProjectView';
 import NotesViewControls from './NotesViewControls';
 import MentorUpsellModal from './MentorUpsellModal';
@@ -565,6 +564,10 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
   useEffect(() => {
     if (isMobile && splitView) setSplitView(null);
   }, [isMobile, splitView]);
+
+  useEffect(() => {
+    if (mainView === 'explorer') setMainView('journal');
+  }, [mainView]);
 
   const openSplitMedia = (media) => {
     if (isMobile) return;
@@ -2239,7 +2242,7 @@ export default function SmartJournal({ onBack, userId, profile, aiCredits = 15, 
                                   value={text}
                                   onChange={setText}
                                   placeholder="Écrivez votre note ici…"
-                                  minHeight="0"
+                                  minHeight="560px"
                                   disabled={isAnalyzing}
                                   stickyToolbar
                                   rightSlot={assistantButton}
