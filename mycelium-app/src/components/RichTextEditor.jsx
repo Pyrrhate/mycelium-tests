@@ -6,8 +6,26 @@ import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
 import FontFamily from '@tiptap/extension-font-family';
+import TextAlign from '@tiptap/extension-text-align';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2, Heading3, List, MessageSquarePlus, Wand2, Loader2 } from 'lucide-react';
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  Bold,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Italic,
+  List,
+  Loader2,
+  MessageSquarePlus,
+  PilcrowLeft,
+  Quote,
+  Underline as UnderlineIcon,
+  Wand2,
+} from 'lucide-react';
 import PageAppearanceMenu from './PageAppearanceMenu';
 import ParagraphAnnotationsOverlay from './ParagraphAnnotationsOverlay';
 import ParagraphAnnotationSheet from './ParagraphAnnotationSheet';
@@ -17,12 +35,12 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
-const ToolbarButton = ({ active, onClick, children, title, isEink = false }) => (
+const ToolbarButton = ({ active, onClick, children, title, isEink = false, className = '' }) => (
   <button
     type="button"
     title={title}
     onClick={onClick}
-    className={`p-2 rounded border transition ${
+    className={`p-2 rounded border transition ${className} ${
       isEink
         ? `${active ? 'bg-[#ECECEC] text-[#1A1A1A] border-[#D9D9D9]' : 'bg-[#F8F8F8] text-[#3A3A3A] border-[#DEDEDE] hover:bg-[#EFEFEF]'}`
         : `${active ? 'bg-gray-700 text-white border-gray-700' : 'bg-[#1a1a1a] text-gray-400 border-gray-700 hover:bg-gray-800'}`
@@ -102,6 +120,7 @@ export default function RichTextEditor({
       Color,
       Highlight.configure({ multicolor: true }),
       FontFamily,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
       ProofreadSelectionDecoration,
       Placeholder.configure({ placeholder: placeholder || 'Écrivez ici…' }),
     ],
@@ -110,6 +129,16 @@ export default function RichTextEditor({
     editorProps: {
       attributes: {
         class: 'prose focus:outline-none min-h-[240px] px-4 py-4 md:px-12 md:py-12 md:max-w-[720px] md:mx-auto',
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          const { from, to } = view.state.selection;
+          const tr = view.state.tr.insertText('    ', from, to);
+          view.dispatch(tr);
+          return true;
+        }
+        return false;
       },
     },
   });
@@ -209,20 +238,19 @@ export default function RichTextEditor({
 
   const TEXT_COLORS = [
     { id: 'default', label: 'Auto', value: null },
-    { id: 'gray', label: 'Gris', value: '#9CA3AF' },
-    { id: 'red', label: 'Rouge', value: '#EF4444' },
-    { id: 'amber', label: 'Ambre', value: '#F59E0B' },
-    { id: 'green', label: 'Vert', value: '#10B981' },
-    { id: 'blue', label: 'Bleu', value: '#3B82F6' },
-    { id: 'purple', label: 'Violet', value: '#8B5CF6' },
+    { id: 'ink', label: 'Encre', value: '#1A1A1A' },
+    { id: 'slate', label: 'Ardoise', value: '#334155' },
+    { id: 'brown', label: 'Brun', value: '#6B4F3A' },
+    { id: 'forest', label: 'Forêt', value: '#2F5D50' },
+    { id: 'navy', label: 'Marine', value: '#2D4565' },
   ];
 
   const HIGHLIGHTS = [
     { id: 'none', label: 'Aucun', value: null },
-    { id: 'yellow', label: 'Jaune', value: 'rgba(245, 158, 11, 0.35)' },
-    { id: 'green', label: 'Vert', value: 'rgba(16, 185, 129, 0.30)' },
-    { id: 'blue', label: 'Bleu', value: 'rgba(59, 130, 246, 0.28)' },
-    { id: 'pink', label: 'Rose', value: 'rgba(236, 72, 153, 0.22)' },
+    { id: 'sand', label: 'Sable', value: 'rgba(196, 170, 118, 0.28)' },
+    { id: 'sage', label: 'Sauge', value: 'rgba(147, 170, 144, 0.28)' },
+    { id: 'mist', label: 'Brume', value: 'rgba(158, 176, 196, 0.26)' },
+    { id: 'rose', label: 'Rose pâle', value: 'rgba(197, 162, 168, 0.22)' },
   ];
 
   const FONTS = [
@@ -307,6 +335,7 @@ export default function RichTextEditor({
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             title="Titre 2"
             isEink={isEink}
+            className="hidden sm:inline-flex"
           >
             <Heading2 className="w-4 h-4" />
           </ToolbarButton>
@@ -315,6 +344,7 @@ export default function RichTextEditor({
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
             title="Titre 3"
             isEink={isEink}
+            className="hidden sm:inline-flex"
           >
             <Heading3 className="w-4 h-4" />
           </ToolbarButton>
@@ -325,6 +355,57 @@ export default function RichTextEditor({
             isEink={isEink}
           >
             <List className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={editor.isActive('blockquote')}
+            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            title="Citation"
+            isEink={isEink}
+            className="hidden sm:inline-flex"
+          >
+            <Quote className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={editor.isActive('codeBlock')}
+            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            title="Bloc de code"
+            isEink={isEink}
+            className="hidden sm:inline-flex"
+          >
+            <Code className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={false}
+            onClick={() => editor.chain().focus().insertContent('&nbsp;&nbsp;&nbsp;&nbsp;').run()}
+            title="Tabulation"
+            isEink={isEink}
+          >
+            <PilcrowLeft className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={editor.isActive({ textAlign: 'left' })}
+            onClick={() => editor.chain().focus().setTextAlign('left').run()}
+            title="Aligner à gauche"
+            isEink={isEink}
+          >
+            <AlignLeft className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={editor.isActive({ textAlign: 'center' })}
+            onClick={() => editor.chain().focus().setTextAlign('center').run()}
+            title="Centrer"
+            isEink={isEink}
+          >
+            <AlignCenter className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={editor.isActive({ textAlign: 'justify' })}
+            onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+            title="Justifier"
+            isEink={isEink}
+            className="hidden sm:inline-flex"
+          >
+            <AlignJustify className="w-4 h-4" />
           </ToolbarButton>
           <ToolbarButton
             active={false}
@@ -351,6 +432,7 @@ export default function RichTextEditor({
             }}
             title="Annoter ce paragraphe"
             isEink={isEink}
+            className="hidden sm:inline-flex"
           >
             <MessageSquarePlus className="w-4 h-4" />
           </ToolbarButton>
@@ -375,63 +457,59 @@ export default function RichTextEditor({
             <option value="comfortable">Confort</option>
             <option value="compact">Compact</option>
           </select>
-          {!isEink && (
-            <>
-              <select
-                value={editor.getAttributes('textStyle').color || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) editor.chain().focus().unsetColor().run();
-                  else editor.chain().focus().setColor(v).run();
-                }}
-                className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
-                title="Couleur du texte"
-              >
-                {TEXT_COLORS.map((c) => (
-                  <option key={c.id} value={c.value || ''}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+          <select
+            value={editor.getAttributes('textStyle').color || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetColor().run();
+              else editor.chain().focus().setColor(v).run();
+            }}
+            className={`hidden sm:inline-flex px-2 py-2 rounded-lg border text-xs transition ${isEink ? 'border-[#DDDDDD] bg-[#FFFFFF] text-[#2A2A2A]' : 'border-gray-800 bg-[#1a1a1a] text-gray-300'}`}
+            title="Couleur du texte"
+          >
+            {TEXT_COLORS.map((c) => (
+              <option key={c.id} value={c.value || ''}>
+                {c.label}
+              </option>
+            ))}
+          </select>
 
-              <select
-                value={editor.getAttributes('highlight').color || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) editor.chain().focus().unsetHighlight().run();
-                  else editor.chain().focus().setHighlight({ color: v }).run();
-                }}
-                className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
-                title="Surlignage"
-              >
-                {HIGHLIGHTS.map((h) => (
-                  <option key={h.id} value={h.value || ''}>
-                    {h.label}
-                  </option>
-                ))}
-              </select>
+          <select
+            value={editor.getAttributes('highlight').color || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetHighlight().run();
+              else editor.chain().focus().setHighlight({ color: v }).run();
+            }}
+            className={`hidden sm:inline-flex px-2 py-2 rounded-lg border text-xs transition ${isEink ? 'border-[#DDDDDD] bg-[#FFFFFF] text-[#2A2A2A]' : 'border-gray-800 bg-[#1a1a1a] text-gray-300'}`}
+            title="Surlignage"
+          >
+            {HIGHLIGHTS.map((h) => (
+              <option key={h.id} value={h.value || ''}>
+                {h.label}
+              </option>
+            ))}
+          </select>
 
-              <select
-                value={editor.getAttributes('textStyle').fontFamily || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) editor.chain().focus().unsetFontFamily().run();
-                  else applyFontToWholeNote(v);
-                }}
-                className="px-2 py-2 rounded-lg border border-gray-800 bg-[#1a1a1a] text-xs text-gray-300 hover:bg-gray-800/40 transition"
-                title="Typographie"
-              >
-                <option value="">Typographie</option>
-                {FONTS.map((f) => (
-                  <option key={f.id} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
+          <select
+            value={editor.getAttributes('textStyle').fontFamily || ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) editor.chain().focus().unsetFontFamily().run();
+              else applyFontToWholeNote(v);
+            }}
+            className={`hidden sm:inline-flex px-2 py-2 rounded-lg border text-xs transition ${isEink ? 'border-[#DDDDDD] bg-[#FFFFFF] text-[#2A2A2A]' : 'border-gray-800 bg-[#1a1a1a] text-gray-300'}`}
+            title="Typographie"
+          >
+            <option value="">Typographie</option>
+            {FONTS.map((f) => (
+              <option key={f.id} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
 
-              <PageAppearanceMenu value={pageAppearance} onChange={onPageAppearanceChange} />
-            </>
-          )}
+          {!isEink && <PageAppearanceMenu value={pageAppearance} onChange={onPageAppearanceChange} />}
           {rightSlot ? <div className="flex items-center gap-2">{rightSlot}</div> : null}
         </div>
       </div>

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { FileText, Camera, Sparkles, Shield, Loader2 } from 'lucide-react';
+import { BookOpenText, Brain, Camera, FileText, Loader2, Shield, Sparkles } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 const atouts = [
@@ -62,71 +61,67 @@ export default function LandingPage({ onAuth }) {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-[var(--bg-main)] text-[var(--text-main)]">
-      {/* Gauche / Haut : Vitrine */}
-      <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:py-16 lg:px-12 xl:px-20">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-xl"
-        >
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-50 tracking-tight">
+      <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:py-16 lg:px-14 xl:px-24">
+        <div className="max-w-2xl">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight">
             Votre Second Cerveau. Augmenté par l'IA.
           </h1>
-          <p className="mt-4 text-lg text-gray-300 leading-relaxed">
+          <p className="mt-6 text-2xl leading-relaxed">
             L'espace de travail minimaliste pour capturer vos notes, organiser vos projets et transcrire vos carnets manuscrits avec une intelligence à la demande.
           </p>
 
           <div className="mt-10 space-y-4">
             {atouts.map((item, i) => (
-              <motion.div
+              <div
                 key={item.title}
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 * (i + 1), duration: 0.4 }}
-                className="flex items-start gap-4 p-4 rounded-xl border border-gray-800 bg-[var(--bg-elevated)] hover:border-gray-700 transition"
+                className="flex items-start gap-4 p-4 border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-dashed"
               >
-                <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
-                  <item.icon className="w-5 h-5 text-gray-400" />
+                <div className="w-10 h-10 border border-[var(--border-subtle)] flex items-center justify-center flex-shrink-0">
+                  <item.icon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-gray-50">{item.title}</h3>
-                  <p className="text-sm text-[var(--text-muted)] mt-0.5">{item.description}</p>
+                  <h3 className="text-xl font-medium">{item.title}</h3>
+                  <p className="text-base text-[var(--text-muted)] mt-1">{item.description}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="mt-10 p-4 rounded-xl border border-gray-800 bg-[var(--bg-elevated)]"
-          >
+          <section className="mt-12 border-t border-[var(--border-subtle)] pt-8 space-y-5">
+            <h2 className="text-4xl font-semibold">Pourquoi j'ai développé cette application</h2>
+            <article className="flex gap-3">
+              <FileText className="w-5 h-5 mt-1" />
+              <p className="text-xl leading-relaxed"><strong>Le Confort sans Distraction</strong> - Les outils répandus sont des cockpits surchargés. Anima est conçu pour la concentration totale, avec une interface pure qui laisse respirer votre pensée.</p>
+            </article>
+            <article className="flex gap-3">
+              <Brain className="w-5 h-5 mt-1" />
+              <p className="text-xl leading-relaxed"><strong>IA comme Partenaire, pas Remplaçant</strong> - La concurrence utilise l'IA pour écrire à votre place, volant votre voix. Notre Mentor agit comme un Coach pour structurer vos mots, sans dénaturer votre voix.</p>
+            </article>
+            <article className="flex gap-3">
+              <Camera className="w-5 h-5 mt-1" />
+              <p className="text-xl leading-relaxed"><strong>Fluidité Physique-Numérique</strong> - Aucun outil n'intègre si élégamment vos carnets manuscrits. Notre OCR Vision intelligent numérise et archive vos notes papier en 5 secondes, créant un pont élégant.</p>
+            </article>
+          </section>
+
+          <div className="mt-10 p-4 border border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
             <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-gray-300">
-                Vos données sont privées entre vous et l'IA, mais stockées sur nos serveurs de manière standard. Infrastructure sécurisée par Supabase RLS.
+              <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <p className="text-base">
+                Vos données sont privées entre vous et l'IA, stockées sur nos serveurs de manière standard. Infrastructure sécurisée par Supabase RLS.
               </p>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
 
-      {/* Droite / Bas : Auth */}
-      <div className="flex-shrink-0 w-full lg:w-[420px] flex items-center justify-center p-6 lg:p-12 border-t lg:border-t-0 lg:border-l border-gray-800">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="w-full max-w-sm"
-        >
-          <h2 className="text-xl font-semibold text-gray-50 mb-6">
+      <div className="flex-shrink-0 w-full lg:w-[460px] flex items-center justify-center p-6 lg:p-12 border-t lg:border-t-0 lg:border-l border-[var(--border-subtle)]">
+        <div className="w-full max-w-sm border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-6">
+          <h2 className="text-2xl font-semibold mb-6">
             {mode === 'login' ? 'Se connecter' : 'Créer un compte'}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="landing-email" className="block text-sm font-medium text-gray-400 mb-1">
+              <label htmlFor="landing-email" className="eink-label block text-xs font-medium text-[var(--text-muted)] mb-1">
                 Email
               </label>
               <input
@@ -135,12 +130,12 @@ export default function LandingPage({ onAuth }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="vous@exemple.fr"
-                className="w-full px-4 py-3 rounded-lg bg-[var(--bg-elevated)] border border-gray-800 text-gray-50 placeholder-gray-500 focus:outline-none focus:border-gray-600 focus:ring-1 focus:ring-gray-600"
+                className="eink-label w-full px-4 py-3 bg-[var(--bg-main)] border border-[var(--border-subtle)] placeholder-gray-500 focus:outline-none"
                 autoComplete="email"
               />
             </div>
             <div>
-              <label htmlFor="landing-password" className="block text-sm font-medium text-gray-400 mb-1">
+              <label htmlFor="landing-password" className="eink-label block text-xs font-medium text-[var(--text-muted)] mb-1">
                 Mot de passe
               </label>
               <input
@@ -149,7 +144,7 @@ export default function LandingPage({ onAuth }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-lg bg-[var(--bg-elevated)] border border-gray-800 text-gray-50 placeholder-gray-500 focus:outline-none focus:border-gray-600 focus:ring-1 focus:ring-gray-600"
+                className="eink-label w-full px-4 py-3 bg-[var(--bg-main)] border border-[var(--border-subtle)] placeholder-gray-500 focus:outline-none"
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               />
             </div>
@@ -159,7 +154,7 @@ export default function LandingPage({ onAuth }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg font-medium bg-white text-black hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+              className="eink-label w-full py-3 border border-[var(--text-main)] bg-[var(--text-main)] text-[var(--bg-main)] hover:bg-[var(--bg-main)] hover:text-[var(--text-main)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -170,24 +165,24 @@ export default function LandingPage({ onAuth }) {
               )}
             </button>
           </form>
-          <p className="mt-4 text-center text-sm text-[var(--text-muted)]">
+          <p className="mt-4 text-center text-sm text-[var(--text-muted)] eink-label">
             {mode === 'login' ? (
               <>
                 Pas encore de compte ?{' '}
-                <button type="button" onClick={() => { setMode('signup'); setError(''); }} className="text-gray-50 hover:underline font-medium">
+                <button type="button" onClick={() => { setMode('signup'); setError(''); }} className="font-medium underline">
                   Créer un compte
                 </button>
               </>
             ) : (
               <>
                 Déjà un compte ?{' '}
-                <button type="button" onClick={() => { setMode('login'); setError(''); }} className="text-gray-50 hover:underline font-medium">
+                <button type="button" onClick={() => { setMode('login'); setError(''); }} className="font-medium underline">
                   Se connecter
                 </button>
               </>
             )}
           </p>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

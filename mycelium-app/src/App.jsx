@@ -9,15 +9,16 @@ import { supabase } from './supabaseClient';
 import { updateProfile } from './services/myceliumSave';
 import { LogOut, Settings } from 'lucide-react';
 import ThemeToggle from './components/ThemeToggle';
+import { CryptoProvider } from './contexts/CryptoContext';
 
 function AppJournalView({ session, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
   const { profile, canActivatePublic, isPublic, refetch: refetchInitiation } = useInitiationStatus(session?.user?.id);
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#0A0A0A] text-gray-200">
-      <header className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/10 bg-[#070B0A]/95">
-        <span className="text-sm font-semibold text-[#F1F1E6]/90">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[var(--bg-main)] text-[var(--text-main)]">
+      <header className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-main)]">
+        <span className="text-sm font-semibold">
           {showSettings ? 'Paramètres' : 'Smart Journal'}
         </span>
         <div className="flex items-center gap-2">
@@ -26,7 +27,7 @@ function AppJournalView({ session, onLogout }) {
             <button
               type="button"
               onClick={() => setShowSettings(false)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[#F1F1E6]/60 hover:text-[#F1F1E6] hover:bg-white/5 transition"
+              className="eink-label flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-black/5"
             >
               <span className="text-xs">← Retour au journal</span>
             </button>
@@ -34,7 +35,7 @@ function AppJournalView({ session, onLogout }) {
             <button
               type="button"
               onClick={() => setShowSettings(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[#F1F1E6]/60 hover:text-[#F1F1E6] hover:bg-white/5 transition"
+              className="eink-label flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-black/5"
               title="Paramètres"
             >
               <Settings className="w-4 h-4" />
@@ -44,38 +45,40 @@ function AppJournalView({ session, onLogout }) {
           <button
             type="button"
             onClick={onLogout}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[#F1F1E6]/60 hover:text-[#F1F1E6] hover:bg-white/5 transition"
+            className="eink-label flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-black/5"
           >
             <LogOut className="w-4 h-4" />
             <span className="text-xs">Déconnexion</span>
           </button>
         </div>
       </header>
-      <main className="flex-1 min-h-0 overflow-hidden">
-        {showSettings ? (
-          <div className="h-full overflow-y-auto p-4 max-w-2xl mx-auto">
-            <VueParametres
-              onBack={() => setShowSettings(false)}
+      <CryptoProvider userId={session?.user?.id}>
+        <main className="flex-1 min-h-0 overflow-hidden">
+          {showSettings ? (
+            <div className="h-full overflow-y-auto p-4 max-w-2xl mx-auto">
+              <VueParametres
+                onBack={() => setShowSettings(false)}
+                userId={session?.user?.id}
+                profile={profile}
+                canActivatePublic={canActivatePublic}
+                isPublic={isPublic}
+                onToggleForest={async () => {
+                  if (!session?.user?.id || !supabase) return;
+                  const slug = (session?.user?.user_metadata?.display_name || session?.user?.email || 'initie').replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+                  await updateProfile(session.user.id, { is_public: !isPublic, public_constellation: !isPublic, slug: isPublic ? null : (slug || `initie-${session.user.id.slice(0, 8)}`) });
+                  refetchInitiation?.();
+                }}
+                refetch={refetchInitiation}
+              />
+            </div>
+          ) : (
+            <AnchoredJournal
               userId={session?.user?.id}
               profile={profile}
-              canActivatePublic={canActivatePublic}
-              isPublic={isPublic}
-              onToggleForest={async () => {
-                if (!session?.user?.id || !supabase) return;
-                const slug = (session?.user?.user_metadata?.display_name || session?.user?.email || 'initie').replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
-                await updateProfile(session.user.id, { is_public: !isPublic, public_constellation: !isPublic, slug: isPublic ? null : (slug || `initie-${session.user.id.slice(0, 8)}`) });
-                refetchInitiation?.();
-              }}
-              refetch={refetchInitiation}
             />
-          </div>
-        ) : (
-          <AnchoredJournal
-            userId={session?.user?.id}
-            profile={profile}
-          />
-        )}
-      </main>
+          )}
+        </main>
+      </CryptoProvider>
     </div>
   );
 }
@@ -124,8 +127,8 @@ function App() {
 
   if (sessionLoading) {
     return (
-      <div className="min-h-screen bg-[#070B0A] flex items-center justify-center">
-        <p className="text-[#D4AF37] font-serif">Le seuil s&apos;ouvre…</p>
+      <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center eink-flash">
+        <p className="text-2xl font-serif">Anima relie vos pensées...</p>
       </div>
     );
   }

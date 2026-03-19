@@ -2,7 +2,7 @@
 
 /* Design system : Smart Journal / Second Cerveau — mode sombre professionnel */
 :root {
-  font-family: 'Inter', 'Roboto', system-ui, sans-serif;
+  font-family: 'EB Garamond', 'Crimson Pro', serif;
   line-height: 1.5;
   font-weight: 400;
   color: var(--text-main);
@@ -11,43 +11,46 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   /* Design system centralisé */
-  --bg-main: #0A0A0A;
-  --bg-elevated: #1A1A1A;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --text-main: #e5e5e5;
-  --text-muted: #9ca3af;
-  --accent: #f9fafb;
+  --bg-main: #FDFDFD;
+  --bg-elevated: #F8F8F8;
+  --border-subtle: #E0E0E0;
+  --text-main: #1A1A1A;
+  --text-muted: #555555;
+  --accent: #1A1A1A;
   /* Legacy / compat */
   --accent-gold: #D4AF37;
   --accent-rgb: 212, 175, 55;
-  --sj-bg: #1a1a1a;
-  --sj-bg-elevated: #222222;
-  --sj-border: 1px solid rgb(38 38 38);
+  --sj-bg: #FDFDFD;
+  --sj-bg-elevated: #F8F8F8;
+  --sj-border: 1px solid #E0E0E0;
+  --eink-flash: rgba(0, 0, 0, 0.09);
 }
 
 /* Thèmes (via classe sur <html>) */
 .theme-dark {
-  --bg-main: #0A0A0A;
-  --bg-elevated: #1A1A1A;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --text-main: #e5e5e5;
-  --text-muted: #9ca3af;
-  --accent: #f9fafb;
-  --sj-bg: #1a1a1a;
-  --sj-bg-elevated: #222222;
-  --sj-border: 1px solid rgb(38 38 38);
+  --bg-main: #FDFDFD;
+  --bg-elevated: #F8F8F8;
+  --border-subtle: #E0E0E0;
+  --text-main: #1A1A1A;
+  --text-muted: #555555;
+  --accent: #1A1A1A;
+  --sj-bg: #FDFDFD;
+  --sj-bg-elevated: #F8F8F8;
+  --sj-border: 1px solid #E0E0E0;
+  --eink-flash: rgba(0, 0, 0, 0.09);
 }
 
 .theme-light {
-  --bg-main: #F5F5F5;
-  --bg-elevated: #FCFCFC;
-  --border-subtle: rgba(26, 26, 26, 0.12);
+  --bg-main: #FDFDFD;
+  --bg-elevated: #F8F8F8;
+  --border-subtle: #E0E0E0;
   --text-main: #1A1A1A;
-  --text-muted: #4b5563;
+  --text-muted: #555555;
   --accent: #1A1A1A;
-  --sj-bg: #FCFCFC;
-  --sj-bg-elevated: #F3F3F3;
-  --sj-border: 1px solid rgba(26, 26, 26, 0.10);
+  --sj-bg: #FDFDFD;
+  --sj-bg-elevated: #F8F8F8;
+  --sj-border: 1px solid #E0E0E0;
+  --eink-flash: rgba(0, 0, 0, 0.09);
 }
 
 /* Zone Smart Journal : fond gris foncé, bordures fines */
@@ -66,6 +69,37 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+* {
+  transition-duration: 50ms !important;
+  transition-timing-function: linear !important;
+}
+
+.eink-label,
+input,
+select,
+button {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.eink-flash {
+  position: relative;
+}
+.eink-flash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--eink-flash);
+  opacity: 0;
+  animation: eink-flash-refresh 55ms linear;
+}
+@keyframes eink-flash-refresh {
+  from { opacity: 0.45; }
+  to { opacity: 0; }
 }
 
 /* IA proofreading : surbrillance légère de la sélection pendant traitement */

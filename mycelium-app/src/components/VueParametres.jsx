@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Settings, Key, Mail, Trash2, Package, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { generateDataArchive } from '../utils/exportArchive';
+import { useCryptoVault } from '../contexts/CryptoContext';
 
 /**
  * Paramètres du compte : mot de passe, email, visibilité Forêt, export archive, supprimer le compte.
@@ -18,6 +19,8 @@ export default function VueParametres({ onBack, userId, profile, canActivatePubl
   const [exportMessage, setExportMessage] = useState({ type: '', text: '' });
   const [premiumSim, setPremiumSim] = useState(false);
   const [premiumLoading, setPremiumLoading] = useState(false);
+  const [masterKeyInput, setMasterKeyInput] = useState('');
+  const { hasVault, unlocked, busy: vaultBusy, error: vaultError, activateVault, lock } = useCryptoVault();
 
   useEffect(() => {
     setPremiumSim(profile?.is_premium === true);
@@ -89,10 +92,10 @@ export default function VueParametres({ onBack, userId, profile, canActivatePubl
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto space-y-8">
-      <h1 className="font-serif text-2xl font-bold accent-color flex items-center gap-2">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto space-y-8 text-[var(--text-main)]">
+      <h1 className="text-3xl font-semibold flex items-center gap-2">
         <Settings className="w-7 h-7" />
-        Paramètres du compte
+        Paramètres
       </h1>
 
       {message.text && (
@@ -103,57 +106,97 @@ export default function VueParametres({ onBack, userId, profile, canActivatePubl
         </div>
       )}
 
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-        <h2 className="font-serif text-lg font-bold accent-color mb-4 flex items-center gap-2">
+      <section className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-6">
+        <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+          Mon Profil
+        </h2>
+        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Key className="w-5 h-5" />
           Mot de passe
-        </h2>
+        </h3>
         <form onSubmit={handleUpdatePassword} className="space-y-3">
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Nouveau mot de passe (6 caractères min.)"
-            className="w-full px-4 py-2 rounded-xl bg-[#0d1211] border border-[var(--accent)]/30 text-[#F1F1E6] placeholder-[#F1F1E6]/40 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            className="eink-label w-full px-4 py-2 bg-[var(--bg-main)] border border-[var(--border-subtle)] focus:outline-none"
           />
-          <button type="submit" disabled={loading} className="px-4 py-2 rounded-xl bg-[var(--accent)]/20 border border-[var(--accent)]/50 accent-color font-medium hover:bg-[var(--accent)]/30 disabled:opacity-50">
+          <button type="submit" disabled={loading} className="eink-label px-4 py-2 border border-[var(--text-main)] hover:bg-black/5 disabled:opacity-50">
             {loading ? 'Envoi...' : 'Modifier le mot de passe'}
           </button>
         </form>
-      </section>
-
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-        <h2 className="font-serif text-lg font-bold accent-color mb-4 flex items-center gap-2">
+        <h3 className="text-lg font-semibold mt-6 mb-3 flex items-center gap-2">
           <Mail className="w-5 h-5" />
           Email
-        </h2>
+        </h3>
         <form onSubmit={handleUpdateEmail} className="space-y-3">
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Nouvelle adresse email"
-            className="w-full px-4 py-2 rounded-xl bg-[#0d1211] border border-[var(--accent)]/30 text-[#F1F1E6] placeholder-[#F1F1E6]/40 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            className="eink-label w-full px-4 py-2 bg-[var(--bg-main)] border border-[var(--border-subtle)] focus:outline-none"
           />
-          <button type="submit" disabled={loading} className="px-4 py-2 rounded-xl bg-[var(--accent)]/20 border border-[var(--accent)]/50 accent-color font-medium hover:bg-[var(--accent)]/30 disabled:opacity-50">
+          <button type="submit" disabled={loading} className="eink-label px-4 py-2 border border-[var(--text-main)] hover:bg-black/5 disabled:opacity-50">
             {loading ? 'Envoi...' : 'Modifier l\'email'}
           </button>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-        <h2 className="font-serif text-lg font-bold text-gray-50 mb-4 flex items-center gap-2">
+      <section className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-6">
+        <h2 className="text-2xl font-semibold mb-4">🔐 Sécurité & Chiffrement</h2>
+        <div className="space-y-3">
+          <label className="eink-label block text-xs text-[var(--text-muted)]">Définir votre Clé Maîtresse</label>
+          <input
+            type="password"
+            value={masterKeyInput}
+            onChange={(e) => setMasterKeyInput(e.target.value)}
+            placeholder="Entrez votre clé maîtresse"
+            className="eink-label w-full max-w-md px-4 py-2 bg-[var(--bg-main)] border border-[var(--border-subtle)] focus:outline-none"
+          />
+          <p className="italic text-lg">
+            Attention : Cette clé ne transite jamais par nos serveurs. Si vous la perdez, vos notes chiffrées seront définitivement illisibles. Nous ne pouvons pas la réinitialiser.
+          </p>
+          {vaultError ? <p className="text-sm text-red-500">{vaultError}</p> : null}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await activateVault(masterKeyInput);
+                if (ok) setMasterKeyInput('');
+              }}
+              disabled={vaultBusy || !masterKeyInput.trim()}
+              className="eink-label px-4 py-2 border border-[var(--text-main)] hover:bg-black/5 disabled:opacity-50"
+            >
+              {hasVault ? 'Déverrouiller le coffre-fort' : 'Activer le coffre-fort'}
+            </button>
+            {unlocked && (
+              <button type="button" onClick={lock} className="eink-label px-4 py-2 border border-dashed border-[var(--text-main)]">
+                Verrouiller
+              </button>
+            )}
+          </div>
+          <p className="eink-label text-xs text-[var(--text-muted)]">
+            État: {hasVault ? (unlocked ? 'Déverrouillé en session' : 'Verrouillé') : 'Non configuré'}
+          </p>
+        </div>
+      </section>
+
+      <section className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-6">
+        <h2 className="text-2xl font-semibold mb-4">Apparence</h2>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Package className="w-5 h-5" />
           Propriété de vos données
-        </h2>
-        <p className="text-gray-300 text-sm mb-4">
+        </h3>
+        <p className="text-[var(--text-muted)] text-base mb-4">
           Vos pensées vous appartiennent. Téléchargez une archive complète de vos notes et projets à tout moment pour la conserver sur votre propre disque dur ou Cloud.
         </p>
         <button
           type="button"
           onClick={handleGenerateArchive}
           disabled={isExporting}
-          className="px-4 py-3 rounded-xl bg-gray-700 border border-gray-600 text-gray-50 font-medium hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+          className="eink-label px-4 py-3 border border-[var(--text-main)] text-[var(--text-main)] bg-[var(--bg-main)] hover:bg-black/5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {isExporting ? (
             <>
@@ -174,12 +217,13 @@ export default function VueParametres({ onBack, userId, profile, canActivatePubl
         )}
       </section>
 
-      <section className="rounded-2xl border border-red-900/30 bg-red-950/10 p-6 backdrop-blur-xl">
-        <h2 className="font-serif text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+      <section className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-6">
+        <h2 className="text-2xl font-semibold mb-4">Sécurité</h2>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Trash2 className="w-5 h-5" />
           Supprimer le compte
-        </h2>
-        <p className="text-[#F1F1E6]/70 text-sm mb-4">
+        </h3>
+        <p className="text-[var(--text-muted)] text-sm mb-4">
           Cette action est irréversible. Toutes vos données (profil, journal, résonances) seront supprimées.
         </p>
         <input
@@ -187,21 +231,21 @@ export default function VueParametres({ onBack, userId, profile, canActivatePubl
           value={deleteConfirm}
           onChange={(e) => setDeleteConfirm(e.target.value)}
           placeholder='Tapez SUPPRIMER pour confirmer'
-          className="w-full max-w-xs px-4 py-2 rounded-xl bg-[#0d1211] border border-red-500/30 text-[#F1F1E6] placeholder-[#F1F1E6]/40 mb-3"
+          className="eink-label w-full max-w-xs px-4 py-2 bg-[var(--bg-main)] border border-[var(--border-subtle)] mb-3"
         />
         <button
           type="button"
           onClick={handleDeleteAccount}
           disabled={deleteConfirm !== 'SUPPRIMER' || deleteLoading}
-          className="px-4 py-2 rounded-xl bg-red-500/20 border border-red-500/50 text-red-400 font-medium hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="eink-label px-4 py-2 border border-dashed border-[var(--text-main)] hover:bg-black/5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {deleteLoading ? 'Suppression...' : 'Supprimer définitivement mon compte'}
         </button>
       </section>
 
       {/* Simulation Premium (Stripe à venir) */}
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-        <h2 className="font-serif text-lg font-bold text-gray-50 mb-3">🛠️ Zone Développeur (Simulation)</h2>
+      <section className="border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-6">
+        <h2 className="text-lg font-semibold mb-3">Simulateur Premium (is_premium)</h2>
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm text-gray-200">Activer le mode Premium</p>
@@ -209,10 +253,12 @@ export default function VueParametres({ onBack, userId, profile, canActivatePubl
               Active/désactive l’accès Premium pour tester le paywall (Stripe sera branché plus tard).
             </p>
           </div>
-          <button
-            type="button"
-            disabled={!userId || premiumLoading}
-            onClick={async () => {
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={premiumSim}
+              disabled={!userId || premiumLoading}
+              onChange={async () => {
               if (!userId || !supabase) return;
               const next = !premiumSim;
               setPremiumLoading(true);
@@ -231,20 +277,11 @@ export default function VueParametres({ onBack, userId, profile, canActivatePubl
               } finally {
                 setPremiumLoading(false);
               }
-            }}
-            className={`relative inline-flex h-9 w-16 flex-shrink-0 items-center rounded-full border transition ${
-              premiumSim ? 'bg-emerald-500/25 border-emerald-400/40' : 'bg-[#0d1211] border-white/10'
-            } ${premiumLoading ? 'opacity-60' : ''}`}
-            aria-pressed={premiumSim}
-            aria-label="Activer le mode Premium"
-            title="Simulation Premium"
-          >
-            <span
-              className={`inline-block h-7 w-7 transform rounded-full bg-white shadow transition ${
-                premiumSim ? 'translate-x-8' : 'translate-x-1'
-              }`}
+              }}
+              className="h-5 w-5 border border-dashed border-[var(--text-main)] accent-black"
             />
-          </button>
+            <span className="eink-label text-sm">{premiumLoading ? 'Mise à jour...' : 'Activer le mode Premium'}</span>
+          </label>
         </div>
       </section>
 

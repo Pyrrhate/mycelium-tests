@@ -5,16 +5,15 @@ const ThemeContext = createContext(null);
 const STORAGE_KEY = 'sj-theme'; // 'dark' | 'light' | 'system'
 
 function getSystemTheme() {
-  if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return 'light';
 }
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || 'dark';
+      return localStorage.getItem(STORAGE_KEY) || 'light';
     } catch {
-      return 'dark';
+      return 'light';
     }
   });
 

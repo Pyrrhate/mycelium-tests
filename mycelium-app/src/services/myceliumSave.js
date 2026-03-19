@@ -296,7 +296,7 @@ export async function getLastIntelligenceResult(userId) {
  * Journal : crée une entrée et retourne l'entrée avec id.
  * primary_emotion : stocké dans detected_element si fourni (ex. calme, energie, clarte).
  */
-export async function saveJournalEntry(userId, { entry_text, detected_element, assigned_quest_id, primary_emotion, tags, project_id }) {
+export async function saveJournalEntry(userId, { entry_text, is_encrypted, detected_element, assigned_quest_id, primary_emotion, tags, project_id }) {
   if (!supabase || !userId || !entry_text?.trim()) return null;
   const { data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
@@ -308,8 +308,9 @@ export async function saveJournalEntry(userId, { entry_text, detected_element, a
       tags: Array.isArray(tags) ? tags : [],
       project_id: project_id || null,
       title: null,
+      is_encrypted: is_encrypted === true,
     })
-    .select('id, created_at, assigned_quest_id, detected_element, entry_text, title, tags, project_id')
+    .select('id, created_at, assigned_quest_id, detected_element, entry_text, title, tags, project_id, is_encrypted')
     .single();
   if (error) {
     console.warn('Mycélium saveJournalEntry:', error.message);
@@ -321,11 +322,12 @@ export async function saveJournalEntry(userId, { entry_text, detected_element, a
 /**
  * Met à jour une entrée du journal (texte et/ou émotion).
  */
-export async function updateJournalEntry(userId, entryId, { entry_text, title, detected_element, primary_emotion, tags, annotations, project_id }) {
+export async function updateJournalEntry(userId, entryId, { entry_text, title, is_encrypted, detected_element, primary_emotion, tags, annotations, project_id }) {
   if (!supabase || !userId || !entryId) return null;
   const payload = {};
   if (entry_text !== undefined) payload.entry_text = typeof entry_text === 'string' ? entry_text.trim() : entry_text;
   if (title !== undefined) payload.title = title ? String(title).trim() : null;
+  if (is_encrypted !== undefined) payload.is_encrypted = is_encrypted === true;
   if (primary_emotion !== undefined || detected_element !== undefined) payload.detected_element = primary_emotion ?? detected_element ?? null;
   if (tags !== undefined) payload.tags = Array.isArray(tags) ? tags : [];
   if (annotations !== undefined) payload.annotations = Array.isArray(annotations) ? annotations : [];
@@ -335,7 +337,7 @@ export async function updateJournalEntry(userId, entryId, { entry_text, title, d
     .update(payload)
     .eq('id', entryId)
     .eq('user_id', userId)
-    .select('id, entry_text, title, detected_element, tags, annotations, project_id, created_at')
+    .select('id, entry_text, title, detected_element, tags, annotations, project_id, is_encrypted, created_at')
     .single();
   if (error) {
     console.warn('updateJournalEntry:', error.message);
@@ -365,7 +367,7 @@ export async function getJournalEntries(userId, limit = 50, projectId = null) {
   if (!supabase || !userId) return [];
   let q = supabase
     .from(TABLE_USER_JOURNAL)
-    .select('id, entry_text, title, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, media_urls, mycelium_link, linked_entry_id, tags, annotations, project_id, created_at')
+    .select('id, entry_text, title, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, media_urls, mycelium_link, linked_entry_id, tags, annotations, project_id, is_encrypted, created_at')
     .eq('user_id', userId)
     .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
@@ -379,7 +381,7 @@ export async function getJournalEntryById(userId, entryId) {
   if (!supabase || !userId || !entryId) return null;
   const { data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
-    .select('id, entry_text, title, detected_element, ai_element, tags, annotations, project_id, created_at')
+    .select('id, entry_text, title, detected_element, ai_element, tags, annotations, project_id, is_encrypted, created_at')
     .eq('id', entryId)
     .eq('user_id', userId)
     .single();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeft,
   BookOpenText,
   CheckSquare,
   Copy,
@@ -10,11 +11,17 @@ import {
   Filter,
   GitMerge,
   Loader2,
+  Menu,
   MoreVertical,
   Plus,
   ScanLine,
   Save,
   Tag,
+  X,
+  CloudCheck,
+  RefreshCw,
+  CloudOff,
+  Lock,
 } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 import {
@@ -35,6 +42,7 @@ import {
 import { supabase } from '../supabaseClient';
 import MentorPanel from './MentorPanel';
 import MentorUpsellModal from './MentorUpsellModal';
+import { decryptNoteText, encryptNoteText, isEncryptedPayload } from '../utils/noteCrypto';
 
 function formatDate(value) {
   if (!value) return '';
@@ -86,8 +94,48 @@ export default function AnchoredJournal({ userId, profile }) {
   const [exporting, setExporting] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(70);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [syncState, setSyncState] = useState('saved'); // saved | syncing | offline | error
+  const [encryptionEnabled, setEncryptionEnabled] = useState(() => {
+    try { return localStorage.getItem('anima.encryption.enabled') !== 'false'; } catch { return true; }
+  });
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileView, setMobileView] = useState('list'); // list | editor
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [flashTick, setFlashTick] = useState(0);
   const isPremium = profile?.is_premium === true;
   const ocrInputRef = useRef(null);
+  const autosaveTimerRef = useRef(null);
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => setIsMobile(!!mq.matches);
+    sync();
+    if (mq.addEventListener) mq.addEventListener('change', sync);
+    else mq.addListener(sync);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', sync);
+      else mq.removeListener(sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileView('list');
+      setMobileSidebarOpen(false);
+      return;
+    }
+    if (activeNoteId && activeNoteId !== 'new') setMobileView('editor');
+  }, [isMobile, activeNoteId]);
+
+  useEffect(() => {
+    try { localStorage.setItem('anima.encryption.enabled', String(encryptionEnabled)); } catch {}
+  }, [encryptionEnabled]);
+
+  useEffect(() => {
+    setFlashTick((v) => v + 1);
+  }, [activeNoteId, mobileView]);
 
   const loadData = useCallback(async () => {
     if (!userId) return;
@@ -146,21 +194,38 @@ export default function AnchoredJournal({ userId, profile }) {
   ), [notes, activeNoteId]);
 
   useEffect(() => {
-    if (activeNoteId === 'new') return;
+    let cancelled = false;
+    if (activeNoteId === 'new') {
+      hydratedRef.current = true;
+      return;
+    }
     if (!activeNote) {
       setActiveNoteId('new');
       setDraft('');
       setTitleDraft('');
       return;
     }
-    setDraft(activeNote.entry_text || '');
+    (async () => {
+      let text = activeNote.entry_text || '';
+      if (isEncryptedPayload(text)) {
+        try {
+          text = await decryptNoteText(text, userId);
+        } catch {
+          text = '<p>[Contenu chiffré indisponible localement]</p>';
+        }
+      }
+      if (!cancelled) setDraft(text);
+      hydratedRef.current = true;
+    })();
     setTitleDraft(activeNote.title || getNoteTitle(activeNote));
-  }, [activeNote, activeNoteId]);
+    return () => { cancelled = true; };
+  }, [activeNote, activeNoteId, userId]);
 
   const selectNote = (note) => {
     setActiveNoteId(note.id);
     setDraft(note.entry_text || '');
     setOpenTabs((prev) => (prev.includes(note.id) ? prev : [...prev, note.id]));
+    if (isMobile) setMobileView('editor');
   };
 
   const handleNewNote = () => {
@@ -169,6 +234,7 @@ export default function AnchoredJournal({ userId, profile }) {
     setDraft('');
     setTitleDraft('');
     setStatus('');
+    if (isMobile) setMobileView('editor');
   };
 
   const handleCloseTab = (tabId) => {
@@ -209,21 +275,23 @@ export default function AnchoredJournal({ userId, profile }) {
     setSaving(true);
     setStatus('');
     try {
+      const payloadText = encryptionEnabled ? await encryptNoteText(draft, userId) : draft;
       if (activeNote && activeNote.id) {
         const updated = await updateJournalEntry(userId, activeNote.id, {
-          entry_text: draft,
+          entry_text: payloadText,
           title: titleDraft,
           project_id: selectedProjectId || activeNote.project_id || null,
         });
         if (updated) {
           setNotes((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
           setStatus('Note sauvegardee.');
+          setSyncState('saved');
         }
       } else {
         const fallbackDefault = projects.find((p) => p.name === 'Non classé');
         const project_id = selectedProjectId || fallbackDefault?.id || null;
         const created = await saveJournalEntry(userId, {
-          entry_text: draft,
+          entry_text: payloadText,
           project_id,
           tags: [],
         });
@@ -236,12 +304,81 @@ export default function AnchoredJournal({ userId, profile }) {
           setNotes((prev) => [hydrated, ...prev]);
           setActiveNoteId(hydrated.id);
           setStatus('Nouvelle note creee.');
+          setSyncState('saved');
         }
       }
+    } catch {
+      setSyncState(navigator.onLine ? 'error' : 'offline');
     } finally {
       setSaving(false);
     }
   };
+
+  const enqueueOfflineSync = (item) => {
+    try {
+      const key = `anima.offline.queue.${userId}`;
+      const current = JSON.parse(localStorage.getItem(key) || '[]');
+      current.push(item);
+      localStorage.setItem(key, JSON.stringify(current.slice(-50)));
+      setSyncState('offline');
+    } catch {}
+  };
+
+  const flushOfflineQueue = useCallback(async () => {
+    if (!userId || !navigator.onLine) return;
+    const key = `anima.offline.queue.${userId}`;
+    let queue = [];
+    try { queue = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+    if (!queue.length) return;
+    for (const q of queue) {
+      if (q.type === 'update' && q.entryId) {
+        // best-effort sync
+        // eslint-disable-next-line no-await-in-loop
+        await updateJournalEntry(userId, q.entryId, q.payload);
+      }
+    }
+    localStorage.removeItem(key);
+    setSyncState('saved');
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !hydratedRef.current) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(async () => {
+      if (!draft || !stripHtml(draft).trim()) return;
+      setSyncState('syncing');
+      try {
+        const entry_text = encryptionEnabled ? await encryptNoteText(draft, userId) : draft;
+        if (activeNote?.id) {
+          const payload = { entry_text, title: titleDraft, project_id: selectedProjectId || activeNote.project_id || null };
+          const updated = await updateJournalEntry(userId, activeNote.id, payload);
+          if (!updated) throw new Error('sync failed');
+          setNotes((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+        }
+        setSyncState('saved');
+      } catch {
+        if (!navigator.onLine && activeNote?.id) {
+          const entry_text = encryptionEnabled ? await encryptNoteText(draft, userId) : draft;
+          enqueueOfflineSync({ type: 'update', entryId: activeNote.id, payload: { entry_text, title: titleDraft, project_id: selectedProjectId || activeNote.project_id || null } });
+        } else {
+          setSyncState('error');
+        }
+      }
+      try {
+        localStorage.setItem(`anima.offline.draft.${userId}.${activeNoteId}`, JSON.stringify({ draft, titleDraft, ts: Date.now() }));
+      } catch {}
+    }, 2000);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [draft, titleDraft, activeNoteId, activeNote, selectedProjectId, userId, encryptionEnabled]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const onOnline = () => { flushOfflineQueue(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [userId, flushOfflineQueue]);
 
   const handleExportCurrent = async (format) => {
     const text = draft || '';
@@ -406,8 +543,8 @@ export default function AnchoredJournal({ userId, profile }) {
   const noteCardCompact = zoomLevel < 50;
 
   return (
-    <div className="h-full w-full overflow-hidden flex bg-[#0A0A0A] text-gray-200">
-      <aside className="w-64 flex-shrink-0 border-r border-gray-800 overflow-y-auto px-3 py-4">
+    <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)]">
+      <aside className="hidden md:flex md:w-64 md:flex-shrink-0 md:flex-col border-r border-gray-800 overflow-y-auto px-3 py-4">
         <p className="px-3 text-[11px] uppercase tracking-wide text-gray-500">Journal</p>
         <button
           type="button"
@@ -463,10 +600,94 @@ export default function AnchoredJournal({ userId, profile }) {
         </div>
       </aside>
 
-      <section className="w-80 flex-shrink-0 border-r border-gray-800 bg-[#111111] overflow-visible min-h-0 flex flex-col">
+      {isMobile && mobileSidebarOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setMobileSidebarOpen(false)} aria-hidden />
+          <aside className="fixed inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] border-r border-gray-800 bg-[#0A0A0A] overflow-y-auto px-3 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-200">Menu</p>
+              <button type="button" onClick={() => setMobileSidebarOpen(false)} className="p-2 rounded-md border border-gray-700 text-gray-300">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="px-3 text-[11px] uppercase tracking-wide text-gray-500">Journal</p>
+            <button
+              type="button"
+              onClick={() => {
+                setContextType('all');
+                setSelectedProjectId(null);
+                setSelectedTag(null);
+                setMobileSidebarOpen(false);
+                setMobileView('list');
+              }}
+              className={`mt-2 w-full text-left px-3 py-2 rounded-lg text-sm transition ${contextType === 'all' ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-900'}`}
+            >
+              Toutes les notes
+            </button>
+            <div className="mt-4">
+              <p className="px-3 text-[11px] uppercase tracking-wide text-gray-500">📁 Projets</p>
+              <div className="mt-2 space-y-1">
+                {projects.map((project) => (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => {
+                      setContextType('project');
+                      setSelectedProjectId(project.id);
+                      setSelectedTag(null);
+                      setMobileSidebarOpen(false);
+                      setMobileView('list');
+                    }}
+                    className={`w-full flex items-center gap-2 text-left px-3 py-1.5 rounded-md text-sm transition ${contextType === 'project' && selectedProjectId === project.id ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-900'}`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color || '#6B7280' }} />
+                    <span className="truncate">{project.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="px-3 text-[11px] uppercase tracking-wide text-gray-500">🏷️ Tags</p>
+              <div className="mt-2 flex flex-wrap gap-1 px-2">
+                {tags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      setContextType('tag');
+                      setSelectedTag(tag);
+                      setSelectedProjectId(null);
+                      setMobileSidebarOpen(false);
+                      setMobileView('list');
+                    }}
+                    className={`px-2 py-1 rounded-md text-xs border transition ${contextType === 'tag' && selectedTag === tag ? 'border-gray-500 bg-gray-800 text-white' : 'border-gray-700 text-gray-400 hover:text-gray-200'}`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {(!isMobile || mobileView === 'list') && (
+      <section className="flex-col flex-1 md:flex-initial md:w-80 md:flex-shrink-0 md:border-r border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-visible min-h-0 flex">
         <div className="relative z-20 px-4 py-3 border-b border-gray-800 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-gray-100">Notes</p>
+            <div className="flex items-center gap-2">
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={() => setMobileSidebarOpen(true)}
+                  className="p-1.5 rounded-md border border-gray-700 text-gray-300"
+                  title="Menu"
+                >
+                  <Menu className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <p className="text-sm font-semibold text-gray-100">Notes</p>
+            </div>
             <div className="flex items-center gap-1.5">
               <input
                 ref={ocrInputRef}
@@ -564,7 +785,7 @@ export default function AnchoredJournal({ userId, profile }) {
           {filteredNotes.map((note) => (
             <div
               key={note.id}
-              className={`w-full text-left rounded-lg border px-2.5 py-2 transition ${activeNoteId === note.id ? 'border-blue-400 ring-1 ring-blue-400/40 bg-blue-500/10' : 'border-gray-800 bg-[#0F0F0F] hover:border-gray-700'}`}
+              className={`w-full text-left rounded-lg border px-2.5 py-2 transition ${activeNoteId === note.id ? 'border-[#B8B8B8] bg-[#F1F1F1]' : 'border-[var(--border-subtle)] bg-[var(--bg-main)] hover:border-dashed'}`}
             >
               {mergeMode && (
                 <div className="pb-1">
@@ -579,18 +800,18 @@ export default function AnchoredJournal({ userId, profile }) {
                 </div>
               )}
               <button type="button" onClick={() => selectNote(note)} className="w-full text-left">
-                <p className={`${noteCardCompact ? 'text-xs' : 'text-sm'} font-semibold text-gray-100 truncate`}>{getNoteTitle(note)}</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">{formatDate(note.created_at)}</p>
+                <p className={`${noteCardCompact ? 'text-xs' : 'text-sm'} font-semibold text-[var(--text-main)] truncate`}>{getNoteTitle(note)}</p>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{formatDate(note.created_at)}</p>
                 {!noteCardCompact && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {(note.tags || []).slice(0, 4).map((tag) => (
-                      <span key={`${note.id}-${tag}`} className="text-[10px] text-gray-400">#{tag}</span>
+                      <span key={`${note.id}-${tag}`} className="text-[10px] text-[var(--text-muted)]">#{tag}</span>
                     ))}
                   </div>
                 )}
               </button>
               <div className="pt-1.5 flex justify-end">
-                <button type="button" onClick={() => handleCopyText(note.entry_text || '')} className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800" title="Copier la note">
+                <button type="button" onClick={() => handleCopyText(note.entry_text || '')} className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-black/5" title="Copier la note">
                   <Copy className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -598,10 +819,22 @@ export default function AnchoredJournal({ userId, profile }) {
           ))}
         </div>
       </section>
+      )}
 
-      <section className="flex-1 flex flex-col bg-[#0A0A0A] min-w-0">
+      {(!isMobile || mobileView === 'editor') && (
+      <section key={flashTick} className="eink-flash flex-col flex-1 bg-[var(--bg-main)] min-w-0 flex">
         <header className="h-16 flex-shrink-0 border-b border-gray-800 px-5 flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            {isMobile && (
+              <button
+                type="button"
+                onClick={() => setMobileView('list')}
+                className="md:hidden inline-flex items-center gap-1 px-2 py-1 rounded-md border border-gray-700 text-xs text-gray-200"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Retour
+              </button>
+            )}
             <input
               type="text"
               value={titleDraft}
@@ -724,7 +957,18 @@ export default function AnchoredJournal({ userId, profile }) {
             </div>
           </div>
           <div className="flex-shrink-0 border-t border-gray-800 bg-[#111111] px-4 py-3 flex items-center justify-between">
-            <p className="text-xs text-gray-400">Projet</p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-gray-400">Projet</p>
+              <label className="text-xs text-gray-400 inline-flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={encryptionEnabled}
+                  onChange={(e) => setEncryptionEnabled(e.target.checked)}
+                />
+                <Lock className="w-3.5 h-3.5" />
+                🔒 Chiffré de bout en bout
+              </label>
+            </div>
             <select
               value={activeProjectForEditor?.id || ''}
               onChange={(e) => setSelectedProjectId(e.target.value || null)}
@@ -735,6 +979,12 @@ export default function AnchoredJournal({ userId, profile }) {
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+          </div>
+          <div className="absolute bottom-2 right-4 text-xs text-gray-500 inline-flex items-center gap-1.5">
+            {syncState === 'syncing' && <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Synchronisation...</>}
+            {syncState === 'saved' && <><CloudCheck className="w-3.5 h-3.5" />Enregistré</>}
+            {syncState === 'offline' && <><CloudOff className="w-3.5 h-3.5" />Hors ligne</>}
+            {syncState === 'error' && <><CloudOff className="w-3.5 h-3.5" />Erreur sync</>}
           </div>
           {status && <p className="absolute bottom-14 left-4 text-xs text-gray-500">{status}</p>}
           <MentorPanel
@@ -749,6 +999,7 @@ export default function AnchoredJournal({ userId, profile }) {
           <MentorUpsellModal open={mentorUpsellOpen} onClose={() => setMentorUpsellOpen(false)} />
         </div>
       </section>
+      )}
     </div>
   );
 }
