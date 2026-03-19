@@ -26,6 +26,7 @@ import {
 import RichTextEditor from './RichTextEditor';
 import {
   attachUnclassifiedNotesToProject,
+  createProject,
   ensureDefaultProject,
   getJournalEntries,
   getProjects,
@@ -73,6 +74,7 @@ export default function AnchoredJournal({ userId, profile }) {
   const [contextType, setContextType] = useState('all'); // all | project | tag
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
+  const [noteProjectId, setNoteProjectId] = useState(null);
   const [sortOrder, setSortOrder] = useState('recent');
   const [activeNoteId, setActiveNoteId] = useState('new');
   const [draft, setDraft] = useState('');
@@ -95,6 +97,8 @@ export default function AnchoredJournal({ userId, profile }) {
   const [zoomLevel, setZoomLevel] = useState(70);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [syncState, setSyncState] = useState('saved'); // saved | syncing | offline | error
+  const [newProjectName, setNewProjectName] = useState('');
+  const [creatingProject, setCreatingProject] = useState(false);
   const [encryptionEnabled, setEncryptionEnabled] = useState(() => {
     try { return localStorage.getItem('anima.encryption.enabled') !== 'false'; } catch { return true; }
   });
@@ -151,6 +155,7 @@ export default function AnchoredJournal({ userId, profile }) {
       ]);
       setNotes(loadedNotes || []);
       setProjects(loadedProjects || []);
+      if (!noteProjectId && defaultProject?.id) setNoteProjectId(defaultProject.id);
       if (!selectedProjectId && defaultProject?.id) setSelectedProjectId(defaultProject.id);
       if (!loadedNotes?.length) {
         setActiveNoteId('new');
@@ -160,7 +165,7 @@ export default function AnchoredJournal({ userId, profile }) {
     } finally {
       setLoading(false);
     }
-  }, [userId, selectedProjectId]);
+  }, [userId, selectedProjectId, noteProjectId]);
 
   useEffect(() => {
     loadData();
@@ -196,6 +201,10 @@ export default function AnchoredJournal({ userId, profile }) {
   useEffect(() => {
     let cancelled = false;
     if (activeNoteId === 'new') {
+      if (!noteProjectId) {
+        const fallbackDefault = projects.find((p) => p.name === 'Non classé');
+        setNoteProjectId(fallbackDefault?.id || null);
+      }
       hydratedRef.current = true;
       return;
     }
@@ -217,9 +226,10 @@ export default function AnchoredJournal({ userId, profile }) {
       if (!cancelled) setDraft(text);
       hydratedRef.current = true;
     })();
+    setNoteProjectId(activeNote.project_id || null);
     setTitleDraft(activeNote.title || getNoteTitle(activeNote));
     return () => { cancelled = true; };
-  }, [activeNote, activeNoteId, userId]);
+  }, [activeNote, activeNoteId, userId, projects, noteProjectId]);
 
   const selectNote = (note) => {
     setActiveNoteId(note.id);
@@ -233,8 +243,32 @@ export default function AnchoredJournal({ userId, profile }) {
     setActiveNoteId('new');
     setDraft('');
     setTitleDraft('');
+    const fallbackDefault = projects.find((p) => p.name === 'Non classé');
+    setNoteProjectId(fallbackDefault?.id || null);
     setStatus('');
     if (isMobile) setMobileView('editor');
+  };
+
+  const handleCreateProject = async () => {
+    const name = newProjectName.trim();
+    if (!name || !userId || creatingProject) return;
+    setCreatingProject(true);
+    setStatus('');
+    try {
+      const created = await createProject(userId, { name, color: '#6B7280' });
+      if (!created) {
+        setStatus("Impossible de créer le projet.");
+        return;
+      }
+      setProjects((prev) => [...prev, created]);
+      setNewProjectName('');
+      setContextType('project');
+      setSelectedProjectId(created.id);
+      if (!activeNote || activeNoteId === 'new') setNoteProjectId(created.id);
+      setStatus('Projet créé.');
+    } finally {
+      setCreatingProject(false);
+    }
   };
 
   const handleCloseTab = (tabId) => {
@@ -280,7 +314,8 @@ export default function AnchoredJournal({ userId, profile }) {
         const updated = await updateJournalEntry(userId, activeNote.id, {
           entry_text: payloadText,
           title: titleDraft,
-          project_id: selectedProjectId || activeNote.project_id || null,
+            project_id: noteProjectId || activeNote.project_id || null,
+            is_encrypted: encryptionEnabled,
         });
         if (updated) {
           setNotes((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
@@ -289,11 +324,12 @@ export default function AnchoredJournal({ userId, profile }) {
         }
       } else {
         const fallbackDefault = projects.find((p) => p.name === 'Non classé');
-        const project_id = selectedProjectId || fallbackDefault?.id || null;
+        const project_id = noteProjectId || selectedProjectId || fallbackDefault?.id || null;
         const created = await saveJournalEntry(userId, {
           entry_text: payloadText,
           project_id,
           tags: [],
+          is_encrypted: encryptionEnabled,
         });
         if (created) {
           const hydrated = { ...created, title: (titleDraft || '').trim() || null };
@@ -350,7 +386,7 @@ export default function AnchoredJournal({ userId, profile }) {
       try {
         const entry_text = encryptionEnabled ? await encryptNoteText(draft, userId) : draft;
         if (activeNote?.id) {
-          const payload = { entry_text, title: titleDraft, project_id: selectedProjectId || activeNote.project_id || null };
+          const payload = { entry_text, title: titleDraft, project_id: noteProjectId || activeNote.project_id || null, is_encrypted: encryptionEnabled };
           const updated = await updateJournalEntry(userId, activeNote.id, payload);
           if (!updated) throw new Error('sync failed');
           setNotes((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
@@ -359,7 +395,7 @@ export default function AnchoredJournal({ userId, profile }) {
       } catch {
         if (!navigator.onLine && activeNote?.id) {
           const entry_text = encryptionEnabled ? await encryptNoteText(draft, userId) : draft;
-          enqueueOfflineSync({ type: 'update', entryId: activeNote.id, payload: { entry_text, title: titleDraft, project_id: selectedProjectId || activeNote.project_id || null } });
+          enqueueOfflineSync({ type: 'update', entryId: activeNote.id, payload: { entry_text, title: titleDraft, project_id: noteProjectId || activeNote.project_id || null, is_encrypted: encryptionEnabled } });
         } else {
           setSyncState('error');
         }
@@ -371,7 +407,7 @@ export default function AnchoredJournal({ userId, profile }) {
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [draft, titleDraft, activeNoteId, activeNote, selectedProjectId, userId, encryptionEnabled]);
+  }, [draft, titleDraft, activeNoteId, activeNote, selectedProjectId, noteProjectId, userId, encryptionEnabled]);
 
   useEffect(() => {
     if (!userId) return;
@@ -493,7 +529,17 @@ export default function AnchoredJournal({ userId, profile }) {
       if (data?.error) throw new Error(data.error);
       setMentorAdvice(data?.result || '');
     } catch (err) {
-      setMentorAdvice(`• ${String(err?.message || 'Erreur Mentor')}`);
+      const raw = String(err?.message || 'Erreur Mentor');
+      const lower = raw.toLowerCase();
+      if (
+        lower.includes('failed to send a request to the edge function') ||
+        lower.includes('failed to fetch') ||
+        lower.includes('networkerror')
+      ) {
+        setMentorAdvice("• Mentor indisponible: la fonction Edge 'writing-coach' est injoignable. Vérifiez son déploiement, la config Supabase (URL/anon key) et le réseau.");
+      } else {
+        setMentorAdvice(`• ${raw}`);
+      }
     } finally {
       setMentorLoading(false);
     }
@@ -522,8 +568,17 @@ export default function AnchoredJournal({ userId, profile }) {
       const normalized = Array.isArray(raw) ? raw.map((x) => `• ${x}`).join('\n') : String(raw || '').trim();
       setAssistantResult(normalized || 'Aucun résultat.');
     } catch (err) {
-      const msg = String(err?.message || "Erreur de l'assistant.");
-      setAssistantResult(`Erreur assistant: ${msg}`);
+      const raw = String(err?.message || "Erreur de l'assistant.");
+      const lower = raw.toLowerCase();
+      if (
+        lower.includes('failed to send a request to the edge function') ||
+        lower.includes('failed to fetch') ||
+        lower.includes('networkerror')
+      ) {
+        setAssistantResult("Erreur assistant: la fonction Edge 'journal-assistant' est injoignable. Vérifiez son déploiement, la config Supabase (URL/anon key) et le réseau.");
+      } else {
+        setAssistantResult(`Erreur assistant: ${raw}`);
+      }
     } finally {
       setAssistantLoading(false);
     }
@@ -539,7 +594,7 @@ export default function AnchoredJournal({ userId, profile }) {
     setStatus("Résultat de l'assistant inséré dans la note.");
   };
 
-  const activeProjectForEditor = projects.find((p) => p.id === (selectedProjectId || activeNote?.project_id)) || null;
+  const activeProjectForEditor = projects.find((p) => p.id === (noteProjectId || activeNote?.project_id)) || null;
   const noteCardCompact = zoomLevel < 50;
 
   return (
@@ -560,6 +615,24 @@ export default function AnchoredJournal({ userId, profile }) {
 
         <div className="mt-4">
           <p className="px-3 text-[11px] uppercase tracking-wide text-gray-500">📁 Projets</p>
+          <div className="mt-2 px-2 flex items-center gap-1">
+            <input
+              type="text"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              placeholder="Nouveau projet"
+              className="flex-1 px-2 py-1 rounded-md border border-gray-700 bg-[#111111] text-xs text-gray-200"
+            />
+            <button
+              type="button"
+              onClick={handleCreateProject}
+              disabled={creatingProject || !newProjectName.trim()}
+              className="px-2 py-1 rounded-md border border-gray-700 text-xs text-gray-200 hover:bg-gray-900 disabled:opacity-50"
+              title="Créer un projet"
+            >
+              {creatingProject ? '...' : 'Créer'}
+            </button>
+          </div>
           <div className="mt-2 space-y-1">
             {projects.map((project) => (
               <button
@@ -626,6 +699,23 @@ export default function AnchoredJournal({ userId, profile }) {
             </button>
             <div className="mt-4">
               <p className="px-3 text-[11px] uppercase tracking-wide text-gray-500">📁 Projets</p>
+              <div className="mt-2 px-2 flex items-center gap-1">
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Nouveau projet"
+                  className="flex-1 px-2 py-1 rounded-md border border-gray-700 bg-[#111111] text-xs text-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateProject}
+                  disabled={creatingProject || !newProjectName.trim()}
+                  className="px-2 py-1 rounded-md border border-gray-700 text-xs text-gray-200 hover:bg-gray-900 disabled:opacity-50"
+                >
+                  {creatingProject ? '...' : 'Créer'}
+                </button>
+              </div>
               <div className="mt-2 space-y-1">
                 {projects.map((project) => (
                   <button
@@ -971,7 +1061,7 @@ export default function AnchoredJournal({ userId, profile }) {
             </div>
             <select
               value={activeProjectForEditor?.id || ''}
-              onChange={(e) => setSelectedProjectId(e.target.value || null)}
+              onChange={(e) => setNoteProjectId(e.target.value || null)}
               className="px-2 py-1.5 rounded-md border border-gray-700 bg-[#1a1a1a] text-xs text-gray-200"
             >
               <option value="">Aucun</option>

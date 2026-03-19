@@ -11,33 +11,33 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   /* Design system centralisé */
-  --bg-main: #FDFDFD;
-  --bg-elevated: #F8F8F8;
-  --border-subtle: #E0E0E0;
-  --text-main: #1A1A1A;
-  --text-muted: #555555;
-  --accent: #1A1A1A;
+  --bg-main: #0A0A0A;
+  --bg-elevated: #111111;
+  --border-subtle: #2A2A2A;
+  --text-main: #E8E8E8;
+  --text-muted: #A3A3A3;
+  --accent: #E8E8E8;
   /* Legacy / compat */
   --accent-gold: #D4AF37;
   --accent-rgb: 212, 175, 55;
-  --sj-bg: #FDFDFD;
-  --sj-bg-elevated: #F8F8F8;
-  --sj-border: 1px solid #E0E0E0;
-  --eink-flash: rgba(0, 0, 0, 0.09);
+  --sj-bg: #0A0A0A;
+  --sj-bg-elevated: #111111;
+  --sj-border: 1px solid #2A2A2A;
+  --eink-flash: rgba(255, 255, 255, 0.06);
 }
 
 /* Thèmes (via classe sur <html>) */
 .theme-dark {
-  --bg-main: #FDFDFD;
-  --bg-elevated: #F8F8F8;
-  --border-subtle: #E0E0E0;
-  --text-main: #1A1A1A;
-  --text-muted: #555555;
-  --accent: #1A1A1A;
-  --sj-bg: #FDFDFD;
-  --sj-bg-elevated: #F8F8F8;
-  --sj-border: 1px solid #E0E0E0;
-  --eink-flash: rgba(0, 0, 0, 0.09);
+  --bg-main: #0A0A0A;
+  --bg-elevated: #111111;
+  --border-subtle: #2A2A2A;
+  --text-main: #E8E8E8;
+  --text-muted: #A3A3A3;
+  --accent: #E8E8E8;
+  --sj-bg: #0A0A0A;
+  --sj-bg-elevated: #111111;
+  --sj-border: 1px solid #2A2A2A;
+  --eink-flash: rgba(255, 255, 255, 0.06);
 }
 
 .theme-light {

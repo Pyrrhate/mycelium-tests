@@ -91,7 +91,7 @@ export default function LandingPage({ onAuth }) {
             <h2 className="text-4xl font-semibold">Pourquoi j'ai développé cette application</h2>
             <article className="flex gap-3">
               <FileText className="w-5 h-5 mt-1" />
-              <p className="text-xl leading-relaxed"><strong>Le Confort sans Distraction</strong> - Les outils répandus sont des cockpits surchargés. Anima est conçu pour la concentration totale, avec une interface pure qui laisse respirer votre pensée.</p>
+              <p className="text-xl leading-relaxed"><strong>Le Confort sans Distraction</strong> - Les outils répandus sont des cockpits surchargés. Aura Notes est conçu pour la concentration totale, avec une interface pure qui laisse respirer votre pensée.</p>
             </article>
             <article className="flex gap-3">
               <Brain className="w-5 h-5 mt-1" />

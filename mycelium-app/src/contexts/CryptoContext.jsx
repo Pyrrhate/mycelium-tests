@@ -14,7 +14,14 @@ export function CryptoProvider({ userId, children }) {
     let mounted = true;
     const load = async () => {
       if (!userId || !supabase) return;
-      const { data } = await supabase.from('profiles').select('encryption_salt').eq('id', userId).maybeSingle();
+      const { data, error: selErr } = await supabase.from('profiles').select('encryption_salt').eq('id', userId).maybeSingle();
+      if (selErr && String(selErr.message || '').includes("encryption_salt")) {
+        if (mounted) {
+          setSalt(null);
+          setError("La colonne profiles.encryption_salt n'existe pas encore. Exécutez la migration SQL de chiffrement.");
+        }
+        return;
+      }
       if (mounted) setSalt(data?.encryption_salt || null);
     };
     load();
@@ -33,6 +40,10 @@ export function CryptoProvider({ userId, children }) {
       const nextSalt = salt || randomSaltB64();
       if (!salt) {
         const { error: upErr } = await supabase.from('profiles').update({ encryption_salt: nextSalt }).eq('id', userId);
+        if (upErr && String(upErr.message || '').includes("encryption_salt")) {
+          setError("La colonne profiles.encryption_salt n'existe pas encore. Exécutez la migration SQL de chiffrement.");
+          return false;
+        }
         if (upErr) throw upErr;
         setSalt(nextSalt);
       }

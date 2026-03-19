@@ -5,15 +5,16 @@ const ThemeContext = createContext(null);
 const STORAGE_KEY = 'sj-theme'; // 'dark' | 'light' | 'system'
 
 function getSystemTheme() {
-  return 'light';
+  if (typeof window === 'undefined') return 'dark';
+  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light';
 }
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || 'light';
+      return localStorage.getItem(STORAGE_KEY) || 'dark';
     } catch {
-      return 'light';
+      return 'dark';
     }
   });
 
@@ -35,7 +36,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     if (theme !== 'system') return undefined;
-    const mq = window.matchMedia?.('(prefers-color-scheme: light)');
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
     if (!mq) return undefined;
     const onChange = () => {
       const root = document.documentElement;

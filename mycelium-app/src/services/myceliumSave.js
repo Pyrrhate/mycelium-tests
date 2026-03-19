@@ -298,20 +298,33 @@ export async function getLastIntelligenceResult(userId) {
  */
 export async function saveJournalEntry(userId, { entry_text, is_encrypted, detected_element, assigned_quest_id, primary_emotion, tags, project_id }) {
   if (!supabase || !userId || !entry_text?.trim()) return null;
-  const { data, error } = await supabase
+  const baseInsert = {
+    user_id: userId,
+    entry_text: entry_text.trim(),
+    detected_element: primary_emotion ?? detected_element ?? null,
+    assigned_quest_id: assigned_quest_id ?? null,
+    tags: Array.isArray(tags) ? tags : [],
+    project_id: project_id || null,
+    title: null,
+  };
+  let data = null;
+  let error = null;
+  ({ data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
     .insert({
-      user_id: userId,
-      entry_text: entry_text.trim(),
-      detected_element: primary_emotion ?? detected_element ?? null,
-      assigned_quest_id: assigned_quest_id ?? null,
-      tags: Array.isArray(tags) ? tags : [],
-      project_id: project_id || null,
-      title: null,
+      ...baseInsert,
       is_encrypted: is_encrypted === true,
     })
     .select('id, created_at, assigned_quest_id, detected_element, entry_text, title, tags, project_id, is_encrypted')
-    .single();
+    .single());
+  if (error && String(error.message || '').includes("is_encrypted")) {
+    ({ data, error } = await supabase
+      .from(TABLE_USER_JOURNAL)
+      .insert(baseInsert)
+      .select('id, created_at, assigned_quest_id, detected_element, entry_text, title, tags, project_id')
+      .single());
+    if (data) data = { ...data, is_encrypted: false };
+  }
   if (error) {
     console.warn('Mycélium saveJournalEntry:', error.message);
     return null;
@@ -332,13 +345,25 @@ export async function updateJournalEntry(userId, entryId, { entry_text, title, i
   if (tags !== undefined) payload.tags = Array.isArray(tags) ? tags : [];
   if (annotations !== undefined) payload.annotations = Array.isArray(annotations) ? annotations : [];
   if (project_id !== undefined) payload.project_id = project_id || null;
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(TABLE_USER_JOURNAL)
     .update(payload)
     .eq('id', entryId)
     .eq('user_id', userId)
     .select('id, entry_text, title, detected_element, tags, annotations, project_id, is_encrypted, created_at')
     .single();
+  if (error && String(error.message || '').includes("is_encrypted")) {
+    const retryPayload = { ...payload };
+    delete retryPayload.is_encrypted;
+    ({ data, error } = await supabase
+      .from(TABLE_USER_JOURNAL)
+      .update(retryPayload)
+      .eq('id', entryId)
+      .eq('user_id', userId)
+      .select('id, entry_text, title, detected_element, tags, annotations, project_id, created_at')
+      .single());
+    if (data) data = { ...data, is_encrypted: false };
+  }
   if (error) {
     console.warn('updateJournalEntry:', error.message);
     return null;
@@ -373,7 +398,25 @@ export async function getJournalEntries(userId, limit = 50, projectId = null) {
     .order('created_at', { ascending: false })
     .limit(limit);
   if (projectId) q = q.eq('project_id', projectId);
-  const { data } = await q;
+  let { data, error } = await q;
+  if (error && String(error.message || '').includes("is_encrypted")) {
+    let retryQ = supabase
+      .from(TABLE_USER_JOURNAL)
+      .select('id, entry_text, title, detected_element, ai_element, ai_quote, ai_reflection, ai_insight, ai_quest, assigned_quest_id, is_completed, completed_at, is_pinned, custom_order, media_urls, mycelium_link, linked_entry_id, tags, annotations, project_id, created_at')
+      .eq('user_id', userId)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (projectId) retryQ = retryQ.eq('project_id', projectId);
+    ({ data, error } = await retryQ);
+    if (!error && Array.isArray(data)) {
+      data = data.map((row) => ({ ...row, is_encrypted: false }));
+    }
+  }
+  if (error) {
+    console.warn('getJournalEntries:', error.message);
+    return [];
+  }
   return data ?? [];
 }
 

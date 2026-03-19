@@ -128,7 +128,7 @@ function App() {
   if (sessionLoading) {
     return (
       <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center eink-flash">
-        <p className="text-2xl font-serif">Anima relie vos pensées...</p>
+        <p className="text-2xl font-serif">Aura Notes relie vos pensées...</p>
       </div>
     );
   }
